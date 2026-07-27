@@ -1356,15 +1356,13 @@ public class OpenVPNService extends VpnService implements Handler.Callback, net.
 
     private void update_notification_event(EventMsg evm) {
         if (this.mNotifyBuilder != null && evm.priority >= MSG_EVENT) {
-            switch (evm.icon_res_id) {
-                case R.drawable.connected:
-                case R.drawable.connecting:
-                case R.drawable.error:
-                    this.mNotifyBuilder.setSmallIcon(R.drawable.openvpn_notification);
-                    break;
-                default:
-                    this.mNotifyBuilder.setSmallIcon(R.drawable.icon);
-                    break;
+            int iconRes = evm.icon_res_id;
+            if (iconRes == R.drawable.connected || 
+                iconRes == R.drawable.connecting || 
+                iconRes == R.drawable.error) {
+                this.mNotifyBuilder.setSmallIcon(R.drawable.openvpn_notification);
+            } else {
+                this.mNotifyBuilder.setSmallIcon(R.drawable.icon);
             }
             this.mNotifyBuilder.setContentText(resString(evm.res_id));
             startForeground(NOTIFICATION_ID, this.mNotifyBuilder.build());
@@ -1377,6 +1375,7 @@ public class OpenVPNService extends VpnService implements Handler.Callback, net.
             stopForeground(true);
         }
     }
+
 
     @Override
     public IBinder onBind(Intent intent) {

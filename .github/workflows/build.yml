@@ -30,16 +30,6 @@ jobs:
       with:
         gradle-version: '8.7'
 
-    # สคริปต์แก้ไขปัญหา Java Code อัตโนมัติก่อน Build
-    - name: Patch Legacy Java Code
-      run: |
-        echo "--> Fixing ok_dialog access modifier..."
-        sed -i 's/private void ok_dialog/protected void ok_dialog/g' app/src/main/java/net/openvpn/openvpn/OpenVPNClient.java || true
-        
-        echo "--> Replacing switch-case with if-else in OpenVPNService.java..."
-        sed -i 's/case R\.drawable\.connecting:/if (evm.icon_res_id == R.drawable.connecting) { \/\/ patched/g' app/src/main/java/net/openvpn/openvpn/OpenVPNService.java || true
-        sed -i 's/case R\.drawable\.error:/} else if (evm.icon_res_id == R.drawable.error) { \/\/ patched/g' app/src/main/java/net/openvpn/openvpn/OpenVPNService.java || true
-
     - name: Clean & Build Debug APK
       run: gradle clean assembleDebug --no-daemon --build-cache
 
