@@ -15,6 +15,9 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
 
+        // แก้ปัญหา BuildConfig.FLAVOR หาไม่เจอ
+        buildConfigField "String", "FLAVOR", "\"\""
+
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a'
         }
@@ -60,6 +63,5 @@ dependencies {
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     
-    // เพิ่มบรรทัดนี้
     implementation 'net.lingala.zip4j:zip4j:1.3.3'
 }
