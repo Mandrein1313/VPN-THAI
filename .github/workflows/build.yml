@@ -31,8 +31,7 @@ jobs:
         gradle-version: '8.7'
 
     - name: Clean & Build Debug APK
-      run: ./gradlew clean assembleDebug --no-daemon --build-cache
-      # ถ้ายังไม่มี gradlew ให้ใช้: gradle clean assembleDebug --no-daemon --build-cache
+      run: gradle clean assembleDebug --no-daemon --build-cache
 
     - name: Generate Timestamp
       id: timestamp
