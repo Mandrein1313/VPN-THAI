@@ -1,25 +1,29 @@
 package net.openvpn.openvpn;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Color;
 import android.net.VpnService;
 import android.os.Binder;
-import android.os.Build.VERSION;
+import android.os.Build;
 import android.os.Handler;
-import android.os.Handler.Callback;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
 import android.security.KeyChain;
-import androidx.core.app.NotificationCompat;
 import android.util.Base64;
 import android.util.Log;
 import android.widget.Toast;
+
+import androidx.core.content.ContextCompat;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -36,13 +40,14 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
-import javax.crypto.Cipher;
-import net.openvpn.openvpn.ProxyList.Item;
-import android.app.*;
-import android.transition.*;
-import android.graphics.Color;
+import java.util.Locale;
 
-public class OpenVPNService extends VpnService implements Callback, net.openvpn.openvpn.OpenVPNClientThread.EventReceiver {
+import javax.crypto.Cipher;
+
+import net.openvpn.openvpn.ProxyList.Item;
+
+public class OpenVPNService extends VpnService implements Handler.Callback, net.openvpn.openvpn.OpenVPNClientThread.EventReceiver {
+    
     public static final String ACTION_BASE = "net.openvpn.openvpn.";
     public static final String ACTION_BIND = "net.openvpn.openvpn.BIND";
     public static final String ACTION_CONNECT = "net.openvpn.openvpn.CONNECT";
@@ -52,33 +57,38 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     public static final String ACTION_IMPORT_PROFILE_VIA_PATH = "net.openvpn.openvpn.ACTION_IMPORT_PROFILE_VIA_PATH";
     public static final String ACTION_RENAME_PROFILE = "net.openvpn.openvpn.RENAME_PROFILE";
     public static final String ACTION_SUBMIT_PROXY_CREDS = "net.openvpn.openvpn.ACTION_SUBMIT_PROXY_CREDS";
+
     public static final int EV_PRIO_HIGH = 3;
     public static final int EV_PRIO_INVISIBLE = 0;
     public static final int EV_PRIO_LOW = 1;
     public static final int EV_PRIO_MED = 2;
+
     private static final int GCI_REQ_ESTABLISH = 0;
     private static final int GCI_REQ_NOTIFICATION = 1;
+
     public static final String INTENT_PREFIX = "net.openvpn.openvpn";
     private static final int MSG_EVENT = 1;
     private static final int MSG_LOG = 2;
     private static final int NOTIFICATION_ID = 1642;
+    private static final String CHANNEL_ID = "openvpn_service_channel";
     private static final String TAG = "OpenVPNService";
     public static final int log_deque_max = 250;
+
     private boolean active = false;
-    private ArrayDeque<EventReceiver> clients = new ArrayDeque();
+    private final ArrayDeque<EventReceiver> clients = new ArrayDeque<>();
     private CPUUsage cpu_usage;
     private Profile current_profile;
-    private final SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss.SSS");
+    private final SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss.SSS", Locale.US);
     private boolean enable_notifications;
-    private HashMap event_info;
+    private HashMap<String, EventInfo> event_info;
     private JellyBeanHack jellyBeanHack;
     private EventMsg last_event;
     private EventMsg last_event_prof_manage;
-    private ArrayDeque<LogMsg> log_deque = new ArrayDeque();
+    private final ArrayDeque<LogMsg> log_deque = new ArrayDeque<>();
     private final IBinder mBinder = new LocalBinder();
     private ConnectivityReceiver mConnectivityReceiver;
     private Handler mHandler;
-   Notification.Builder mNotifyBuilder;
+    private Notification.Builder mNotifyBuilder;
     private OpenVPNClientThread mThread;
     private PrefUtil prefs;
     private ProfileList profile_list;
@@ -87,15 +97,9 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     private boolean shutdown_pending = false;
     private long thread_started = 0;
 
-	private String str;
-
-	private Object[] objArr;
-
     public interface EventReceiver {
         void event(EventMsg eventMsg);
-
-        PendingIntent get_configure_intent(int i);
-
+        PendingIntent get_configure_intent(int requestCode);
         void log(LogMsg logMsg);
     }
 
@@ -104,31 +108,22 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         private boolean echo;
         private boolean response_required;
 
-        public String get_challenge() {
-            return this.challenge;
-        }
+        public String get_challenge() { return this.challenge; }
+        public boolean get_echo() { return this.echo; }
+        public boolean get_response_required() { return this.response_required; }
 
-        public boolean get_echo() {
-            return this.echo;
-        }
-
-        public boolean get_response_required() {
-            return this.response_required;
-        }
-
+        @Override
         public String toString() {
-            Object[] objArr = new Object[OpenVPNService.EV_PRIO_HIGH];
-            objArr[OpenVPNService.GCI_REQ_ESTABLISH] = this.challenge;
-            objArr[OpenVPNService.MSG_EVENT] = Boolean.valueOf(this.echo);
-            objArr[OpenVPNService.MSG_LOG] = Boolean.valueOf(this.response_required);
-            return String.format("%s/%b/%b", objArr);
+            return String.format(Locale.US, "%s/%b/%b", this.challenge, this.echo, this.response_required);
         }
     }
-	public enum Transition {
-		NO_CHANGE,
-		TO_CONNECTED,
-		TO_DISCONNECTED
-        }
+
+    public enum Transition {
+        NO_CHANGE,
+        TO_CONNECTED,
+        TO_DISCONNECTED
+    }
+
     public static class ConnectionStats {
         public long bytes_in;
         public long bytes_out;
@@ -137,96 +132,57 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     }
 
     private class ConnectivityReceiver extends BroadcastReceiver {
-        private final int ANTI_FLAP_PERIOD;
-        public boolean conn_on;
-        public boolean conn_on_defined;
-        private boolean initialized;
-        private long last_action_time;
-        private boolean last_ok;
-        public boolean screen_on;
-        public boolean screen_on_defined;
+        public boolean conn_on = false;
+        public boolean conn_on_defined = false;
+        private boolean initialized = false;
+        private long last_action_time = 0;
+        private boolean last_ok = true;
+        public boolean screen_on = false;
+        public boolean screen_on_defined = false;
 
-        private ConnectivityReceiver() {
-            this.ANTI_FLAP_PERIOD = 10000;
-            this.screen_on_defined = false;
-            this.screen_on = false;
-            this.conn_on_defined = false;
-            this.conn_on = false;
-            this.last_ok = true;
-            this.initialized = false;
-        }
-
+        @Override
         public void onReceive(Context context, Intent intent) {
             boolean screen_on_mod = false;
             boolean conn_on_mod = false;
             boolean failover = false;
             String act = intent.getAction();
             boolean pvbs = OpenVPNService.this.prefs.get_boolean("pause_vpn_on_blanked_screen", false);
-            String str;
-            Object[] objArr;
-		
-			
-            if ("android.intent.action.SCREEN_ON".equals(act)) {
-                str = OpenVPNService.TAG;
-                objArr = new Object[OpenVPNService.MSG_EVENT];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = Boolean.valueOf(pvbs);
-                Log.i(str, String.format("ConnectivityReceiver: SCREEN_ON pvbs=%b", objArr));
+
+            if (Intent.ACTION_SCREEN_ON.equals(act)) {
+                Log.i(TAG, String.format(Locale.US, "ConnectivityReceiver: SCREEN_ON pvbs=%b", pvbs));
                 this.screen_on = true;
                 screen_on_mod = true;
                 this.screen_on_defined = true;
-            } else if ("android.intent.action.SCREEN_OFF".equals(act)) {
-                str = OpenVPNService.TAG;
-                objArr = new Object[OpenVPNService.MSG_EVENT];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = Boolean.valueOf(pvbs);
-                Log.i(str, String.format("ConnectivityReceiver: SCREEN_OFF pvbs=%b", objArr));
+            } else if (Intent.ACTION_SCREEN_OFF.equals(act)) {
+                Log.i(TAG, String.format(Locale.US, "ConnectivityReceiver: SCREEN_OFF pvbs=%b", pvbs));
                 this.screen_on = false;
                 screen_on_mod = true;
                 this.screen_on_defined = true;
             } else if ("android.net.conn.CONNECTIVITY_CHANGE".equals(act)) {
-                boolean z;
-                if (intent.getBooleanExtra("noConnectivity", false)) {
-                    z = false;
-                } else {
-                    z = true;
-                }
-                this.conn_on = z;
+                this.conn_on = !intent.getBooleanExtra("noConnectivity", false);
                 failover = intent.getBooleanExtra("isFailover", false);
                 conn_on_mod = true;
                 this.conn_on_defined = true;
-                str = OpenVPNService.TAG;
-                objArr = new Object[OpenVPNService.MSG_LOG];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = Boolean.valueOf(this.conn_on);
-                objArr[OpenVPNService.MSG_EVENT] = Boolean.valueOf(failover);
-                Log.i(str, String.format("ConnectivityReceiver: CONNECTIVITY_ACTION conn=%b fo=%b", objArr));
-            } else {
-                str = OpenVPNService.TAG;
-                objArr = new Object[OpenVPNService.MSG_EVENT];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = intent.toString();
-                Log.i(str, String.format("ConnectivityReceiver: UNKNOWN INTENT: %s", objArr));
+                Log.i(TAG, String.format(Locale.US, "ConnectivityReceiver: CONNECTIVITY_ACTION conn=%b fo=%b", this.conn_on, failover));
             }
+
             if (screen_on_mod || conn_on_mod) {
-                boolean ok;
-                if (!(pvbs && this.screen_on_defined && !this.screen_on) && (!this.conn_on_defined || this.conn_on)) {
-                    ok = true;
-                } else {
-                    ok = false;
-                }
+                boolean ok = !(pvbs && this.screen_on_defined && !this.screen_on) && (!this.conn_on_defined || this.conn_on);
                 if (OpenVPNService.this.active) {
                     if (ok != this.last_ok) {
                         if (ok) {
-                            Log.i(OpenVPNService.TAG, "ConnectivityReceiver: triggering VPN resume");
+                            Log.i(TAG, "ConnectivityReceiver: triggering VPN resume");
                             OpenVPNService.this.network_resume();
-                            this.last_ok = ok;
                         } else {
-                            Log.i(OpenVPNService.TAG, "ConnectivityReceiver: triggering VPN pause");
+                            Log.i(TAG, "ConnectivityReceiver: triggering VPN pause");
                             OpenVPNService.this.network_pause();
-                            this.last_ok = ok;
                         }
+                        this.last_ok = ok;
                     } else if (screen_on_mod && this.screen_on && ok && !pvbs) {
-                        Log.i(OpenVPNService.TAG, "ConnectivityReceiver: triggering special VPN resume");
+                        Log.i(TAG, "ConnectivityReceiver: triggering special VPN resume");
                         OpenVPNService.this.network_resume();
                     } else if (conn_on_mod && failover && ok && this.initialized && time_since_last_action() > 10000) {
-                        Log.i(OpenVPNService.TAG, "ConnectivityReceiver: triggering VPN reconnect");
+                        Log.i(TAG, "ConnectivityReceiver: triggering VPN reconnect");
                         OpenVPNService.this.network_reconnect(OpenVPNService.MSG_LOG);
                     }
                 }
@@ -247,13 +203,9 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     }
 
     private static class DynamicChallenge {
-        public Challenge challenge;
+        public Challenge challenge = new Challenge();
         public String cookie;
         public long expires;
-
-        private DynamicChallenge() {
-            this.challenge = new Challenge();
-        }
 
         public boolean is_expired() {
             return SystemClock.elapsedRealtime() > this.expires;
@@ -263,12 +215,9 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             return this.expires - SystemClock.elapsedRealtime();
         }
 
+        @Override
         public String toString() {
-            Object[] objArr = new Object[OpenVPNService.EV_PRIO_HIGH];
-            objArr[OpenVPNService.GCI_REQ_ESTABLISH] = this.challenge.toString();
-            objArr[OpenVPNService.MSG_EVENT] = this.cookie;
-            objArr[OpenVPNService.MSG_LOG] = Long.valueOf(this.expires);
-            return String.format("%s/%s/%s", objArr);
+            return String.format(Locale.US, "%s/%s/%d", this.challenge.toString(), this.cookie, this.expires);
         }
     }
 
@@ -295,24 +244,19 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         public static final int F_PROF_IMPORT = 32;
         public static final int F_PROF_MANAGE = 4;
         public static final int F_UI_RESET = 8;
+
         public ClientAPI_ConnectionInfo conn_info;
         public long expires = 0;
-        public int flags = OpenVPNService.GCI_REQ_ESTABLISH;
+        public int flags = 0;
         public int icon_res_id = -1;
-        public String info;
-        public String name;
+        public String info = "";
+        public String name = "";
         public int priority = F_ERROR;
         public String profile_override;
-        public int progress = OpenVPNService.GCI_REQ_ESTABLISH;
+        public int progress = 0;
         public int res_id = -1;
         public EventReceiver sender;
         public Transition transition = Transition.NO_CHANGE;
-
-        public enum Transition {
-            NO_CHANGE,
-            TO_CONNECTED,
-            TO_DISCONNECTED
-			}
 
         public static EventMsg disconnected() {
             EventMsg e = new EventMsg();
@@ -320,61 +264,48 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             e.res_id = R.string.disconnected;
             e.icon_res_id = R.drawable.disconnected;
             e.name = "DISCONNECTED";
-            e.info = BuildConfig.FLAVOR;
+            e.info = "";
             return e;
         }
 
         public boolean is_expired() {
-            if (this.expires != 0 && SystemClock.elapsedRealtime() > this.expires) {
-                return true;
-            }
-            return false;
+            return this.expires != 0 && SystemClock.elapsedRealtime() > this.expires;
         }
 
         public boolean is_reflected(EventReceiver caller) {
-            if (this.sender == null) {
-                return false;
-            }
-            if ((this.flags & F_EXCLUDE_SELF) == 0 && this.sender == caller) {
-                return false;
-            }
-            return true;
+            if (this.sender == null) return false;
+            return (this.flags & F_EXCLUDE_SELF) != 0 || this.sender != caller;
         }
 
         public String toStringFull() {
-            return String.format("EVENT: name=%s info='%s' trans=%s flags=%d progress=%d prio=%d res=%d", new Object[]{this.name, this.info, this.transition, Integer.valueOf(this.flags), Integer.valueOf(this.progress), Integer.valueOf(this.priority), Integer.valueOf(this.res_id)});
+            return String.format(Locale.US, "EVENT: name=%s info='%s' trans=%s flags=%d progress=%d prio=%d res=%d",
+                    this.name, this.info, this.transition, this.flags, this.progress, this.priority, this.res_id);
         }
 
+        @Override
         public String toString() {
-            StringBuffer buffer = new StringBuffer();
-            Object[] objArr = new Object[F_ERROR];
-            objArr[OpenVPNService.GCI_REQ_ESTABLISH] = this.name;
-            buffer.append(String.format("EVENT: %s", objArr));
-            if (this.info.length() > 0) {
-                objArr = new Object[F_ERROR];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = this.info;
-                buffer.append(String.format(" info='%s'", objArr));
+            StringBuilder buffer = new StringBuilder();
+            buffer.append(String.format(Locale.US, "EVENT: %s", this.name));
+            if (this.info != null && !this.info.isEmpty()) {
+                buffer.append(String.format(Locale.US, " info='%s'", this.info));
             }
             if (this.transition != Transition.NO_CHANGE) {
-                objArr = new Object[F_ERROR];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = this.transition;
-                buffer.append(String.format(" trans=%s", objArr));
+                buffer.append(String.format(Locale.US, " trans=%s", this.transition));
             }
             return buffer.toString();
         }
     }
 
-    public static class InternalError extends RuntimeException {
-    }
+    public static class InternalError extends RuntimeException {}
 
     public class LocalBinder extends Binder {
-        OpenVPNService getService() {
+        public OpenVPNService getService() {
             return OpenVPNService.this;
         }
     }
 
     public static class LogMsg {
-        String line;
+        public String line;
     }
 
     public class Profile {
@@ -404,38 +335,42 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
                 try {
                     this.name = URLDecoder.decode(this.name, "UTF-8");
                 } catch (UnsupportedEncodingException e) {
-                    Log.e(OpenVPNService.TAG, "UnsupportedEncodingException when decoding profile filename", e);
+                    Log.e(TAG, "UnsupportedEncodingException when decoding profile filename", e);
                 }
             } else {
                 this.name = filename;
             }
+
             if (ec.getError()) {
                 this.errorText = ec.getMessage();
                 return;
             }
+
             this.userlocked_username = ec.getUserlockedUsername();
             this.autologin = ec.getAutologin();
             this.external_pki = ec.getExternalPki();
             this.private_key_password_required = ec.getPrivateKeyPasswordRequired();
             this.allow_password_save = ec.getAllowPasswordSave();
+            
             String cs = ec.getStaticChallenge();
-            if (cs.length() > 0) {
+            if (cs != null && !cs.isEmpty()) {
                 Challenge chal = new Challenge();
                 chal.challenge = cs;
                 chal.echo = ec.getStaticChallengeEcho();
                 chal.response_required = true;
                 this.static_challenge = chal;
             }
+
             if (!filename_is_url_encoded_profile_name) {
                 String profile_name = ec.getProfileName();
                 String friendly_name = ec.getFriendlyName();
                 String loc = null;
-                if (!(this.location == null || this.location.equals("imported"))) {
+                if (this.location != null && !this.location.equals("imported")) {
                     loc = this.location;
                 }
                 boolean is_friendly = false;
                 String f1 = profile_name;
-                if (friendly_name.length() > 0) {
+                if (friendly_name != null && !friendly_name.isEmpty()) {
                     f1 = friendly_name;
                     is_friendly = true;
                 }
@@ -446,19 +381,18 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
                 if (ProfileFN.has_ovpn_ext(f2)) {
                     f2 = ProfileFN.strip_ovpn_ext(f2);
                 }
-                if (!(f2 == null || f1 == null || !f2.equals(f1))) {
+                if (f2 != null && f1 != null && f2.equals(f1)) {
                     f2 = null;
                 }
-                StringBuffer n = new StringBuffer();
-                n.append(f1);
+                StringBuilder n = new StringBuilder();
+                if (f1 != null) n.append(f1);
                 if (this.autologin && !is_friendly && f2 == null) {
-                    n.append(OpenVPNService.this.getText(R.string.autologin_suffix).toString());
+                    n.append(OpenVPNService.this.getText(R.string.autologin_suffix));
                 }
-                if (!(loc == null && f2 == null)) {
+                if (loc != null || f2 != null) {
                     n.append(" [");
                     if (loc != null) {
-                        n.append(loc);
-                        n.append(":");
+                        n.append(loc).append(":");
                     }
                     if (f2 != null) {
                         n.append(f2);
@@ -467,10 +401,11 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
                 }
                 this.name = n.toString();
             }
+
             this.server_list = new ServerList();
             ClientAPI_ServerEntryVector sev = ec.getServerList();
             int n2 = (int) sev.size();
-            for (int i = OpenVPNService.GCI_REQ_ESTABLISH; i < n2; i += OpenVPNService.MSG_EVENT) {
+            for (int i = 0; i < n2; i++) {
                 ClientAPI_ServerEntry se = sev.get(i);
                 ServerEntry e2 = new ServerEntry();
                 e2.server = se.getServer();
@@ -480,95 +415,42 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             this.external_pki_alias = OpenVPNService.this.prefs.get_string_by_profile(this.name, "epki_alias");
         }
 
-        public String get_location() {
-            return this.location;
-        }
-
+        public String get_location() { return this.location; }
         public String get_filename() {
-            if (this.location != null && this.location.equals("bundled")) {
+            if ("bundled".equals(this.location)) {
                 return this.orig_filename;
             }
             String ret = ProfileFN.encode_profile_fn(this.name);
             return ret == null ? this.orig_filename : ret;
         }
-
-        public String get_error() {
-            return this.errorText;
-        }
-
+        public String get_error() { return this.errorText; }
         public String get_type_string() {
-            if (get_autologin()) {
-                return OpenVPNService.this.getText(R.string.profile_type_autologin).toString();
-            }
-            if (get_epki()) {
-                return OpenVPNService.this.getText(R.string.profile_type_epki).toString();
-            }
-            return OpenVPNService.this.getText(R.string.profile_type_standard).toString();
+            if (get_autologin()) return OpenVPNService.this.getString(R.string.profile_type_autologin);
+            if (get_epki()) return OpenVPNService.this.getString(R.string.profile_type_epki);
+            return OpenVPNService.this.getString(R.string.profile_type_standard);
         }
-
-        public String get_name() {
-            return this.name;
-        }
-
-        public String get_userlocked_username() {
-            return this.userlocked_username;
-        }
-
-        public boolean get_autologin() {
-            return this.autologin;
-        }
-
-        public ServerList get_server_list() {
-            return this.server_list;
-        }
-
-        public boolean server_list_defined() {
-            return this.server_list.list.size() > 0;
-        }
-
-        public boolean userlocked_username_defined() {
-            return this.userlocked_username.length() > 0;
-        }
-
-        public boolean need_external_pki_alias() {
-            return this.external_pki && this.external_pki_alias == null;
-        }
-
-        public boolean have_external_pki_alias() {
-            return this.external_pki && this.external_pki_alias != null;
-        }
-
-        public boolean get_private_key_password_required() {
-            return this.private_key_password_required;
-        }
-
-        public boolean get_allow_password_save() {
-            return this.allow_password_save;
-        }
-
-        public boolean is_deleteable() {
-            return (this.location == null || this.location.equals("bundled")) ? false : true;
-        }
-
-        public boolean is_renameable() {
-            return is_deleteable();
-        }
+        public String get_name() { return this.name; }
+        public String get_userlocked_username() { return this.userlocked_username; }
+        public boolean get_autologin() { return this.autologin; }
+        public ServerList get_server_list() { return this.server_list; }
+        public boolean server_list_defined() { return !this.server_list.list.isEmpty(); }
+        public boolean userlocked_username_defined() { return this.userlocked_username != null && !this.userlocked_username.isEmpty(); }
+        public boolean need_external_pki_alias() { return this.external_pki && this.external_pki_alias == null; }
+        public boolean have_external_pki_alias() { return this.external_pki && this.external_pki_alias != null; }
+        public boolean get_private_key_password_required() { return this.private_key_password_required; }
+        public boolean get_allow_password_save() { return this.allow_password_save; }
+        public boolean is_deleteable() { return !("bundled".equals(this.location) || this.location == null); }
+        public boolean is_renameable() { return is_deleteable(); }
 
         public ProxyContext get_proxy_context(boolean create_if_necessary) {
             if (this.proxy_context != null && !this.proxy_context.is_expired()) {
                 return this.proxy_context;
             }
-            if (create_if_necessary) {
-                this.proxy_context = new ProxyContext();
-            } else {
-                this.proxy_context = null;
-            }
+            this.proxy_context = create_if_necessary ? new ProxyContext() : null;
             return this.proxy_context;
         }
 
-        public void reset_proxy_context() {
-            this.proxy_context = null;
-        }
+        public void reset_proxy_context() { this.proxy_context = null; }
 
         public boolean is_dynamic_challenge() {
             expire_dynamic_challenge();
@@ -576,15 +458,12 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         }
 
         public long get_dynamic_challenge_expire_delay() {
-            if (is_dynamic_challenge()) {
-                return this.dynamic_challenge.expire_delay();
-            }
-            return 0;
+            return is_dynamic_challenge() ? this.dynamic_challenge.expire_delay() : 0;
         }
 
         public boolean challenge_defined() {
             expire_dynamic_challenge();
-            return (this.static_challenge == null && this.dynamic_challenge == null) ? false : true;
+            return this.static_challenge != null || this.dynamic_challenge != null;
         }
 
         public Challenge get_challenge() {
@@ -595,9 +474,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             return this.static_challenge;
         }
 
-        public void reset_dynamic_challenge() {
-            this.dynamic_challenge = null;
-        }
+        public void reset_dynamic_challenge() { this.dynamic_challenge = null; }
 
         private void expire_dynamic_challenge() {
             if (this.dynamic_challenge != null && this.dynamic_challenge.is_expired()) {
@@ -605,13 +482,8 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             }
         }
 
-        private boolean get_epki() {
-            return this.external_pki;
-        }
-
-        private String get_epki_alias() {
-            return this.external_pki_alias;
-        }
+        private boolean get_epki() { return this.external_pki; }
+        private String get_epki_alias() { return this.external_pki_alias; }
 
         private void persist_epki_alias(String epki_alias) {
             this.external_pki_alias = epki_alias;
@@ -635,67 +507,46 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             }
         }
 
+        @Override
         public String toString() {
-            String str = "Profile name='%s' ofn='%s' userlock=%s auto=%b epki=%b/%s sl=%s sc=%s dc=%s";
-            Object[] objArr = new Object[9];
-            objArr[OpenVPNService.GCI_REQ_ESTABLISH] = this.name;
-            objArr[OpenVPNService.MSG_EVENT] = this.orig_filename;
-            objArr[OpenVPNService.MSG_LOG] = this.userlocked_username;
-            objArr[OpenVPNService.EV_PRIO_HIGH] = Boolean.valueOf(this.autologin);
-            objArr[4] = Boolean.valueOf(this.external_pki);
-            objArr[5] = this.external_pki_alias;
-            objArr[6] = this.server_list.toString();
-            objArr[7] = this.static_challenge != null ? this.static_challenge.toString() : "null";
-            objArr[8] = this.dynamic_challenge != null ? this.dynamic_challenge.toString() : "null";
-            return String.format(str, objArr);
+            return String.format(Locale.US, "Profile name='%s' ofn='%s' userlock=%s auto=%b epki=%b/%s sl=%s sc=%s dc=%s",
+                    this.name, this.orig_filename, this.userlocked_username, this.autologin,
+                    this.external_pki, this.external_pki_alias, this.server_list,
+                    this.static_challenge != null ? this.static_challenge.toString() : "null",
+                    this.dynamic_challenge != null ? this.dynamic_challenge.toString() : "null");
         }
     }
 
     public class MergedProfile extends Profile {
         public String profile_content;
-
         private MergedProfile(String location_arg, String filename, boolean filename_is_url_encoded_profile_name, ClientAPI_EvalConfig ec) {
             super(location_arg, filename, filename_is_url_encoded_profile_name, ec);
         }
     }
 
     private static class ProfileFN {
-        private ProfileFN() {
-        }
-
         public static boolean has_ovpn_ext(String fn) {
-            if (fn == null) {
-                return false;
-            }
-            if (fn.endsWith(".ovpn") || fn.endsWith(".OVPN")) {
-                return true;
-            }
-            return false;
+            return fn != null && (fn.endsWith(".ovpn") || fn.endsWith(".OVPN"));
         }
 
         public static String strip_ovpn_ext(String fn) {
-            if (fn == null || !has_ovpn_ext(fn)) {
-                return fn;
-            }
-            return fn.substring(OpenVPNService.GCI_REQ_ESTABLISH, fn.length() - 5);
+            if (fn == null || !has_ovpn_ext(fn)) return fn;
+            return fn.substring(0, fn.length() - 5);
         }
 
         public static String encode_profile_fn(String name) {
             try {
                 return URLEncoder.encode(name, "UTF-8") + ".ovpn";
             } catch (UnsupportedEncodingException e) {
-                Log.e(OpenVPNService.TAG, "UnsupportedEncodingException when encoding profile filename", e);
+                Log.e(TAG, "UnsupportedEncodingException when encoding profile filename", e);
                 return null;
             }
         }
     }
 
     public class ProfileList extends ArrayList<Profile> {
-
         private class CustomComparator implements Comparator<Profile> {
-            private CustomComparator() {
-            }
-
+            @Override
             public int compare(Profile p1, Profile p2) {
                 return p1.name.compareTo(p2.name);
             }
@@ -705,24 +556,22 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             String storage_title;
             String[] fnlist;
             boolean filename_is_url_encoded_profile_name;
-            String str;
-            Object[] objArr;
-            if (location.equals("bundled")) {
+
+            if ("bundled".equals(location)) {
                 storage_title = "assets";
-                fnlist = OpenVPNService.this.getResources().getAssets().list(BuildConfig.FLAVOR);
+                fnlist = OpenVPNService.this.getResources().getAssets().list("");
+                filename_is_url_encoded_profile_name = true;
+            } else if ("imported".equals(location)) {
+                storage_title = "app private storage";
+                fnlist = OpenVPNService.this.fileList();
                 filename_is_url_encoded_profile_name = true;
             } else {
-                if (location.equals("imported")) {
-                    storage_title = "app private storage";
-                    fnlist = OpenVPNService.this.fileList();
-                    filename_is_url_encoded_profile_name = true;
-                } else {
-                    throw new InternalError();
-                }
+                throw new InternalError();
             }
-            int length = fnlist.length;
-            for (int i = OpenVPNService.GCI_REQ_ESTABLISH; i < length; i += OpenVPNService.MSG_EVENT) {
-                String fn = fnlist[i];
+
+            if (fnlist == null) return;
+
+            for (String fn : fnlist) {
                 if (ProfileFN.has_ovpn_ext(fn)) {
                     try {
                         String profile_content = OpenVPNService.this.read_file(location, fn);
@@ -730,25 +579,12 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
                         config.setContent(profile_content);
                         ClientAPI_EvalConfig ec = ClientAPI_OpenVPNClient.eval_config_static(config);
                         if (ec.getError()) {
-                            str = OpenVPNService.TAG;
-                            objArr = new Object[OpenVPNService.MSG_LOG];
-                            objArr[OpenVPNService.GCI_REQ_ESTABLISH] = fn;
-                            objArr[OpenVPNService.MSG_EVENT] = ec.getMessage();
-                            Log.i(str, String.format("PROFILE: error evaluating %s: %s", objArr));
+                            Log.i(TAG, String.format(Locale.US, "PROFILE: error evaluating %s: %s", fn, ec.getMessage()));
                         } else {
                             add(new Profile(location, fn, filename_is_url_encoded_profile_name, ec));
                         }
                     } catch (IOException e) {
-                        try {
-                            str = OpenVPNService.TAG;
-                            objArr = new Object[OpenVPNService.MSG_LOG];
-                            objArr[OpenVPNService.GCI_REQ_ESTABLISH] = fn;
-                            objArr[OpenVPNService.MSG_EVENT] = storage_title;
-                            Log.i(str, String.format("PROFILE: error reading %s from %s", objArr));
-                        } catch (Exception e2) {
-                            Log.e(OpenVPNService.TAG, "PROFILE: error enumerating assets", e2);
-                            return;
-                        }
+                        Log.i(TAG, String.format(Locale.US, "PROFILE: error reading %s from %s", fn, storage_title));
                     }
                 }
             }
@@ -756,17 +592,15 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
 
         public String[] profile_names() {
             String[] ret = new String[size()];
-            for (int i = OpenVPNService.GCI_REQ_ESTABLISH; i < size(); i += OpenVPNService.MSG_EVENT) {
-                ret[i] = ((Profile) get(i)).name;
+            for (int i = 0; i < size(); i++) {
+                ret[i] = get(i).name;
             }
             return ret;
         }
 
         public Profile get_profile_by_name(String name) {
             if (name != null) {
-                Iterator it = iterator();
-                while (it.hasNext()) {
-                    Profile prof = (Profile) it.next();
+                for (Profile prof : this) {
                     if (name.equals(prof.name)) {
                         return prof;
                     }
@@ -777,16 +611,14 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
 
         public void forget_certs() {
             OpenVPNService.this.jellyBeanHackPurge();
-            Iterator it = iterator();
-            while (it.hasNext()) {
-                ((Profile) it.next()).forget_cert();
+            for (Profile prof : this) {
+                prof.forget_cert();
             }
         }
 
         private void invalidate_epki_alias(String epki_alias) {
-            Iterator it = iterator();
-            while (it.hasNext()) {
-                ((Profile) it.next()).invalidate_epki_alias(epki_alias);
+            for (Profile prof : this) {
+                prof.invalidate_epki_alias(epki_alias);
             }
         }
 
@@ -806,9 +638,6 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         private String proxy_password;
         private String proxy_username;
 
-        private ProxyContext() {
-        }
-
         public void new_connection(Intent connect_intent, String profile_name, String proxy_name, String username, String password, boolean allow_creds_dialog, ProxyList proxy_list, boolean proxy_retry) {
             if (!proxy_retry) {
                 Item p = proxy_list.get(proxy_name);
@@ -817,17 +646,16 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
                     this.profile_name = profile_name;
                     this.connect_intent = connect_intent;
                     this.allow_creds_dialog = allow_creds_dialog;
-                    this.n_retries = OpenVPNService.GCI_REQ_ESTABLISH;
+                    this.n_retries = 0;
                     this.expires = SystemClock.elapsedRealtime() + 120000;
                     if (!this.explicit_creds) {
                         if (username == null || password == null) {
                             this.proxy_username = p.username;
                             this.proxy_password = p.password;
-                            return;
+                        } else {
+                            this.proxy_username = username;
+                            this.proxy_password = password;
                         }
-                        this.proxy_username = username;
-                        this.proxy_password = password;
-                        return;
                     }
                     return;
                 }
@@ -849,7 +677,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
                 proxy_list.put(this.proxy);
                 proxy_list.save();
             }
-            this.n_retries += OpenVPNService.MSG_EVENT;
+            this.n_retries++;
             return this.connect_intent;
         }
 
@@ -857,7 +685,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             if (this.proxy != null) {
                 config.setProxyHost(this.proxy.host);
                 config.setProxyPort(this.proxy.port);
-                if (!(this.proxy_username == null || this.proxy_password == null)) {
+                if (this.proxy_username != null && this.proxy_password != null) {
                     config.setProxyUsername(this.proxy_username);
                     config.setProxyPassword(this.proxy_password);
                 }
@@ -888,17 +716,11 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         }
 
         public String name() {
-            if (this.proxy != null) {
-                return this.proxy.name();
-            }
-            return null;
+            return this.proxy != null ? this.proxy.name() : null;
         }
 
         public boolean is_expired() {
-            if (this.expires != 0 && SystemClock.elapsedRealtime() > this.expires) {
-                return true;
-            }
-            return false;
+            return this.expires != 0 && SystemClock.elapsedRealtime() > this.expires;
         }
 
         private void reset() {
@@ -910,7 +732,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             this.proxy_username = null;
             this.proxy_password = null;
             this.allow_creds_dialog = false;
-            this.n_retries = OpenVPNService.GCI_REQ_ESTABLISH;
+            this.n_retries = 0;
         }
     }
 
@@ -919,54 +741,46 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         private String server;
 
         public String display_name() {
-            if (this.friendly_name.length() > 0) {
-                return this.friendly_name;
-            }
-            return this.server;
+            return (this.friendly_name != null && !this.friendly_name.isEmpty()) ? this.friendly_name : this.server;
         }
 
+        @Override
         public String toString() {
-            Object[] objArr = new Object[OpenVPNService.MSG_LOG];
-            objArr[OpenVPNService.GCI_REQ_ESTABLISH] = this.server;
-            objArr[OpenVPNService.MSG_EVENT] = this.friendly_name;
-            return String.format("%s/%s", objArr);
+            return String.format(Locale.US, "%s/%s", this.server, this.friendly_name);
         }
     }
 
     public static class ServerList {
-        private ArrayList<ServerEntry> list = new ArrayList();
+        private final ArrayList<ServerEntry> list = new ArrayList<>();
 
         public String[] display_names() {
             int size = this.list.size();
             String[] ret = new String[size];
-            for (int i = OpenVPNService.GCI_REQ_ESTABLISH; i < size; i += OpenVPNService.MSG_EVENT) {
-                ret[i] = ((ServerEntry) this.list.get(i)).display_name();
+            for (int i = 0; i < size; i++) {
+                ret[i] = this.list.get(i).display_name();
             }
             return ret;
         }
 
+        @Override
         public String toString() {
-            StringBuffer buffer = new StringBuffer();
-            Iterator it = this.list.iterator();
-            while (it.hasNext()) {
-                buffer.append(((ServerEntry) it.next()).toString() + ",");
+            StringBuilder buffer = new StringBuilder();
+            for (ServerEntry se : this.list) {
+                buffer.append(se.toString()).append(",");
             }
             return buffer.toString();
         }
     }
 
     private class TunBuilder extends VpnService.Builder implements net.openvpn.openvpn.OpenVPNClientThread.TunBuilder {
-        private TunBuilder() {
+        public TunBuilder() {
             super();
         }
 
+        @Override
         public boolean tun_builder_set_remote_address(String address, boolean ipv6) {
             try {
-                String str = OpenVPNService.TAG;
-                Object[] objArr = new Object[OpenVPNService.MSG_LOG];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = address;
-                objArr[OpenVPNService.MSG_EVENT] = Boolean.valueOf(ipv6);
-                Log.d(str, String.format("BUILDER: set_remote_address %s ipv6=%b", objArr));
+                Log.d(TAG, String.format(Locale.US, "BUILDER: set_remote_address %s ipv6=%b", address, ipv6));
                 return true;
             } catch (Exception e) {
                 log_error("tun_builder_set_remote_address", e);
@@ -974,9 +788,10 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             }
         }
 
+        @Override
         public boolean tun_builder_add_address(String address, int prefix_length, String gateway, boolean ipv6, boolean net30) {
             try {
-                Log.d(OpenVPNService.TAG, String.format("BUILDER: add_address %s/%d %s ipv6=%b net30=%b", new Object[]{address, Integer.valueOf(prefix_length), gateway, Boolean.valueOf(ipv6), Boolean.valueOf(net30)}));
+                Log.d(TAG, String.format(Locale.US, "BUILDER: add_address %s/%d %s ipv6=%b net30=%b", address, prefix_length, gateway, ipv6, net30));
                 addAddress(address, prefix_length);
                 return true;
             } catch (Exception e) {
@@ -985,39 +800,24 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             }
         }
 
+        @Override
         public boolean tun_builder_reroute_gw(boolean ipv4, boolean ipv6, long flags) {
             try {
-                String str = OpenVPNService.TAG;
-                Object[] objArr = new Object[OpenVPNService.EV_PRIO_HIGH];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = Boolean.valueOf(ipv4);
-                objArr[OpenVPNService.MSG_EVENT] = Boolean.valueOf(ipv6);
-                objArr[OpenVPNService.MSG_LOG] = Long.valueOf(flags);
-                Log.d(str, String.format("BUILDER: reroute_gw ipv4=%b ipv6=%b flags=%d", objArr));
-                if ((65536 & flags) != 0) {
-                    return true;
-                }
-                if (ipv4) {
-                    addRoute("0.0.0.0", OpenVPNService.GCI_REQ_ESTABLISH);
-                }
-                if (!ipv6) {
-                    return true;
-                }
-                addRoute("::", OpenVPNService.GCI_REQ_ESTABLISH);
+                Log.d(TAG, String.format(Locale.US, "BUILDER: reroute_gw ipv4=%b ipv6=%b flags=%d", ipv4, ipv6, flags));
+                if ((65536 & flags) != 0) return true;
+                if (ipv4) addRoute("0.0.0.0", 0);
+                if (ipv6) addRoute("::", 0);
                 return true;
             } catch (Exception e) {
-                log_error("tun_builder_add_route", e);
+                log_error("tun_builder_reroute_gw", e);
                 return false;
             }
         }
 
+        @Override
         public boolean tun_builder_add_route(String address, int prefix_length, boolean ipv6) {
             try {
-                String str = OpenVPNService.TAG;
-                Object[] objArr = new Object[OpenVPNService.EV_PRIO_HIGH];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = address;
-                objArr[OpenVPNService.MSG_EVENT] = Integer.valueOf(prefix_length);
-                objArr[OpenVPNService.MSG_LOG] = Boolean.valueOf(ipv6);
-                Log.d(str, String.format("BUILDER: add_route %s/%d ipv6=%b", objArr));
+                Log.d(TAG, String.format(Locale.US, "BUILDER: add_route %s/%d ipv6=%b", address, prefix_length, ipv6));
                 addRoute(address, prefix_length);
                 return true;
             } catch (Exception e) {
@@ -1026,14 +826,10 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             }
         }
 
+        @Override
         public boolean tun_builder_exclude_route(String address, int prefix_length, boolean ipv6) {
             try {
-                String str = OpenVPNService.TAG;
-                Object[] objArr = new Object[OpenVPNService.EV_PRIO_HIGH];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = address;
-                objArr[OpenVPNService.MSG_EVENT] = Integer.valueOf(prefix_length);
-                objArr[OpenVPNService.MSG_LOG] = Boolean.valueOf(ipv6);
-                Log.d(str, String.format("BUILDER: exclude_route %s/%d ipv6=%b (NOT IMPLEMENTED)", objArr));
+                Log.d(TAG, String.format(Locale.US, "BUILDER: exclude_route %s/%d ipv6=%b (NOT IMPLEMENTED)", address, prefix_length, ipv6));
                 return true;
             } catch (Exception e) {
                 log_error("tun_builder_exclude_route", e);
@@ -1041,13 +837,10 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             }
         }
 
+        @Override
         public boolean tun_builder_add_dns_server(String address, boolean ipv6) {
             try {
-                String str = OpenVPNService.TAG;
-                Object[] objArr = new Object[OpenVPNService.MSG_LOG];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = address;
-                objArr[OpenVPNService.MSG_EVENT] = Boolean.valueOf(ipv6);
-                Log.d(str, String.format("BUILDER: add_dns_server %s ipv6=%b", objArr));
+                Log.d(TAG, String.format(Locale.US, "BUILDER: add_dns_server %s ipv6=%b", address, ipv6));
                 addDnsServer(address);
                 return true;
             } catch (Exception e) {
@@ -1056,12 +849,10 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             }
         }
 
+        @Override
         public boolean tun_builder_add_search_domain(String domain) {
             try {
-                String str = OpenVPNService.TAG;
-                Object[] objArr = new Object[OpenVPNService.MSG_EVENT];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = domain;
-                Log.d(str, String.format("BUILDER: add_search_domain %s", objArr));
+                Log.d(TAG, String.format(Locale.US, "BUILDER: add_search_domain %s", domain));
                 addSearchDomain(domain);
                 return true;
             } catch (Exception e) {
@@ -1070,12 +861,10 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             }
         }
 
+        @Override
         public boolean tun_builder_set_mtu(int mtu) {
             try {
-                String str = OpenVPNService.TAG;
-                Object[] objArr = new Object[OpenVPNService.MSG_EVENT];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = Integer.valueOf(mtu);
-                Log.d(str, String.format("BUILDER: set_mtu %d", objArr));
+                Log.d(TAG, String.format(Locale.US, "BUILDER: set_mtu %d", mtu));
                 setMtu(mtu);
                 return true;
             } catch (Exception e) {
@@ -1084,12 +873,10 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             }
         }
 
+        @Override
         public boolean tun_builder_set_session_name(String name) {
             try {
-                String str = OpenVPNService.TAG;
-                Object[] objArr = new Object[OpenVPNService.MSG_EVENT];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = name;
-                Log.d(str, String.format("BUILDER: set_session_name %s", objArr));
+                Log.d(TAG, String.format(Locale.US, "BUILDER: set_session_name %s", name));
                 setSession("Open Vpn");
                 return true;
             } catch (Exception e) {
@@ -1098,13 +885,12 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             }
         }
 
+        @Override
         public int tun_builder_establish() {
             try {
-                Log.d(OpenVPNService.TAG, "BUILDER: establish");
-                PendingIntent pi = OpenVPNService.this.get_configure_intent(OpenVPNService.GCI_REQ_ESTABLISH);
-                if (pi != null) {
-                    setConfigureIntent(pi);
-                }
+                Log.d(TAG, "BUILDER: establish");
+                PendingIntent pi = OpenVPNService.this.get_configure_intent(GCI_REQ_ESTABLISH);
+                if (pi != null) setConfigureIntent(pi);
                 return establish().detachFd();
             } catch (Exception e) {
                 log_error("tun_builder_establish", e);
@@ -1112,23 +898,17 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             }
         }
 
+        @Override
         public void tun_builder_teardown(boolean disconnect) {
             try {
-                String str = OpenVPNService.TAG;
-                Object[] objArr = new Object[OpenVPNService.MSG_EVENT];
-                objArr[OpenVPNService.GCI_REQ_ESTABLISH] = Boolean.valueOf(disconnect);
-                Log.d(str, String.format("BUILDER: teardown disconnect=%b", objArr));
+                Log.d(TAG, String.format(Locale.US, "BUILDER: teardown disconnect=%b", disconnect));
             } catch (Exception e) {
                 log_error("tun_builder_teardown", e);
             }
         }
 
         private void log_error(String meth_name, Exception e) {
-            String str = OpenVPNService.TAG;
-            Object[] objArr = new Object[OpenVPNService.MSG_LOG];
-            objArr[OpenVPNService.GCI_REQ_ESTABLISH] = meth_name;
-            objArr[OpenVPNService.MSG_EVENT] = e.toString();
-            Log.d(str, String.format("BUILDER_ERROR: %s %s", objArr));
+            Log.d(TAG, String.format(Locale.US, "BUILDER_ERROR: %s %s", meth_name, e.toString()));
         }
     }
 
@@ -1146,13 +926,20 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         this.mConnectivityReceiver = new ConnectivityReceiver();
         IntentFilter filter = new IntentFilter();
         filter.addAction("android.net.conn.CONNECTIVITY_CHANGE");
-        filter.addAction("android.intent.action.SCREEN_ON");
-        filter.addAction("android.intent.action.SCREEN_OFF");
-        registerReceiver(this.mConnectivityReceiver, filter);
+        filter.addAction(Intent.ACTION_SCREEN_ON);
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(this.mConnectivityReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(this.mConnectivityReceiver, filter);
+        }
     }
 
     private void unregister_connectivity_receiver() {
-        unregisterReceiver(this.mConnectivityReceiver);
+        if (this.mConnectivityReceiver != null) {
+            unregisterReceiver(this.mConnectivityReceiver);
+        }
     }
 
     public void jellyBeanHackPurge() {
@@ -1163,14 +950,12 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
 
     private void crypto_self_test() {
         String st = ClientAPI_OpenVPNClient.crypto_self_test();
-        if (st.length() > 0) {
-            String str = TAG;
-            Object[] objArr = new Object[MSG_EVENT];
-            objArr[GCI_REQ_ESTABLISH] = st;
-            Log.d(str, String.format("SERV: crypto_self_test\n%s", objArr));
+        if (st != null && !st.isEmpty()) {
+            Log.d(TAG, String.format(Locale.US, "SERV: crypto_self_test\n%s", st));
         }
     }
 
+    @Override
     public void onCreate() {
         super.onCreate();
         Log.d(TAG, "SERV: Service onCreate called");
@@ -1186,50 +971,34 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         this.proxy_list.load();
     }
 
-    public int onStartCommand(Intent intent, int flags, int startId)  {
-        if (intent != null) {
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && intent.getAction() != null) {
             String prefix = INTENT_PREFIX;
             String action = intent.getAction();
-            String str = TAG;
-            Object[] objArr = new Object[MSG_EVENT];
-            objArr[GCI_REQ_ESTABLISH] = action;
-            Log.d(str, String.format("SERV: onStartCommand action=%s", objArr));
-            if (action.equals(ACTION_CONNECT)) {
-                connect_action(prefix, intent, false);
-            } else if (action.equals(ACTION_SUBMIT_PROXY_CREDS)) {
-                try
-				{
-					submit_proxy_creds_action(prefix, intent);
-				}
-				catch (IOException e)
-				{}
+            Log.d(TAG, String.format(Locale.US, "SERV: onStartCommand action=%s", action));
+
+            try {
+                if (action.equals(ACTION_CONNECT)) {
+                    connect_action(prefix, intent, false);
+                } else if (action.equals(ACTION_SUBMIT_PROXY_CREDS)) {
+                    submit_proxy_creds_action(prefix, intent);
+                } else if (action.equals(ACTION_DISCONNECT)) {
+                    disconnect_action(prefix, intent);
+                } else if (action.equals(ACTION_IMPORT_PROFILE)) {
+                    import_profile_action(prefix, intent);
+                } else if (action.equals(ACTION_IMPORT_PROFILE_VIA_PATH)) {
+                    import_profile_via_path_action(prefix, intent);
+                } else if (action.equals(ACTION_DELETE_PROFILE)) {
+                    delete_profile_action(prefix, intent);
+                } else if (action.equals(ACTION_RENAME_PROFILE)) {
+                    rename_profile_action(prefix, intent);
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "Error handling start command action", e);
             }
- else if (action.equals(ACTION_DISCONNECT))
- {
-                disconnect_action(prefix, intent);
-            } else if (action.equals(ACTION_IMPORT_PROFILE)) {
-                import_profile_action(prefix, intent);
-            } else if (action.equals(ACTION_IMPORT_PROFILE_VIA_PATH)) {
-                import_profile_via_path_action(prefix, intent);
-            } else if (action.equals(ACTION_DELETE_PROFILE)) {
-                try
-				{
-					delete_profile_action(prefix, intent);
-				}
-				catch (IOException e)
-				{}
-            }
- else if (action.equals(ACTION_RENAME_PROFILE))
- {
-	 try
-	 {
-		 rename_profile_action(prefix, intent);
-	 }
-	 catch (IOException e)
-	 {}
- }
         }
-        return MSG_EVENT;
+        return START_STICKY;
     }
 
     private boolean import_profile_via_path_action(String prefix, Intent intent) {
@@ -1243,7 +1012,11 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     }
 
     private boolean import_profile_action(String prefix, Intent intent) {
-        return import_profile(intent.getStringExtra(prefix + ".CONTENT"), intent.getStringExtra(prefix + ".FILENAME"), intent.getBooleanExtra(prefix + ".MERGE", false));
+        return import_profile(
+                intent.getStringExtra(prefix + ".CONTENT"),
+                intent.getStringExtra(prefix + ".FILENAME"),
+                intent.getBooleanExtra(prefix + ".MERGE", false)
+        );
     }
 
     private boolean import_profile(String profile_content, String filename, boolean merge) {
@@ -1262,10 +1035,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             config.setContent(profile_content);
             ClientAPI_EvalConfig ec = ClientAPI_OpenVPNClient.eval_config_static(config);
             if (ec.getError()) {
-                Object[] objArr = new Object[MSG_LOG];
-                objArr[GCI_REQ_ESTABLISH] = filename;
-                objArr[MSG_EVENT] = ec.getMessage();
-                gen_event(MSG_EVENT, "PROFILE_PARSE_ERROR", String.format("%s : %s", objArr));
+                gen_event(MSG_EVENT, "PROFILE_PARSE_ERROR", String.format(Locale.US, "%s : %s", filename, ec.getMessage()));
                 return false;
             }
             Profile prof = new Profile("imported", filename, false, ec);
@@ -1290,9 +1060,8 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         String profile_name = intent.getStringExtra(prefix + ".PROFILE");
         get_profile_list();
         Profile profile = this.profile_list.get_profile_by_name(profile_name);
-        if (profile == null) {
-            return false;
-        }
+        if (profile == null) return false;
+
         if (profile.is_deleteable()) {
             if (this.active && profile == this.current_profile) {
                 stop_thread();
@@ -1316,23 +1085,17 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         String new_profile_name = intent.getStringExtra(prefix + ".NEW_PROFILE");
         get_profile_list();
         Profile profile = this.profile_list.get_profile_by_name(profile_name);
-        if (profile == null) {
-            return false;
-        }
-        if (!profile.is_renameable() || new_profile_name == null || new_profile_name.length() == 0) {
+        if (profile == null) return false;
+
+        if (!profile.is_renameable() || new_profile_name == null || new_profile_name.isEmpty()) {
             Log.d(TAG, "PROFILE_RENAME_FAILED: rename preliminary checks");
             gen_event(MSG_EVENT, "PROFILE_RENAME_FAILED", profile_name);
             return false;
         }
         File dir = getFilesDir();
-        Object[] objArr = new Object[MSG_LOG];
-        objArr[GCI_REQ_ESTABLISH] = dir.getPath();
-        objArr[MSG_EVENT] = profile.orig_filename;
-        String from_path = String.format("%s/%s", objArr);
-        objArr = new Object[MSG_LOG];
-        objArr[GCI_REQ_ESTABLISH] = dir.getPath();
-        objArr[MSG_EVENT] = ProfileFN.encode_profile_fn(new_profile_name);
-        String to_path = String.format("%s/%s", objArr);
+        String from_path = String.format(Locale.US, "%s/%s", dir.getPath(), profile.orig_filename);
+        String to_path = String.format(Locale.US, "%s/%s", dir.getPath(), ProfileFN.encode_profile_fn(new_profile_name));
+
         if (FileUtil.renameFile(from_path, to_path)) {
             refresh_profile_list();
             Profile new_profile = this.profile_list.get_profile_by_name(new_profile_name);
@@ -1346,11 +1109,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             gen_event(GCI_REQ_ESTABLISH, "PROFILE_RENAME_SUCCESS", new_profile.get_name(), new_profile.get_name());
             return true;
         }
-        String str = TAG;
-        Object[] objArr2 = new Object[MSG_LOG];
-        objArr2[GCI_REQ_ESTABLISH] = from_path;
-        objArr2[MSG_EVENT] = to_path;
-        Log.d(str, String.format("PROFILE_RENAME_FAILED: rename operation from='%s' to='%s'", objArr2));
+        Log.d(TAG, String.format(Locale.US, "PROFILE_RENAME_FAILED: rename operation from='%s' to='%s'", from_path, to_path));
         gen_event(MSG_EVENT, "PROFILE_RENAME_FAILED", profile_name);
         return false;
     }
@@ -1358,9 +1117,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     private Profile locate_profile(String profile_name) throws IOException {
         get_profile_list();
         Profile profile = this.profile_list.get_profile_by_name(profile_name);
-        if (profile != null) {
-            return profile;
-        }
+        if (profile != null) return profile;
         gen_event(MSG_EVENT, "PROFILE_NOT_FOUND", profile_name);
         return null;
     }
@@ -1370,7 +1127,13 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         if (profile != null) {
             ProxyContext proxy_context = profile.get_proxy_context(false);
             if (proxy_context != null) {
-                Intent connect_intent = proxy_context.submit_proxy_creds(intent.getStringExtra(prefix + ".PROXY_NAME"), intent.getStringExtra(prefix + ".PROXY_USERNAME"), intent.getStringExtra(prefix + ".PROXY_PASSWORD"), intent.getBooleanExtra(prefix + ".PROXY_REMEMBER_CREDS", false), this.proxy_list);
+                Intent connect_intent = proxy_context.submit_proxy_creds(
+                        intent.getStringExtra(prefix + ".PROXY_NAME"),
+                        intent.getStringExtra(prefix + ".PROXY_USERNAME"),
+                        intent.getStringExtra(prefix + ".PROXY_PASSWORD"),
+                        intent.getBooleanExtra(prefix + ".PROXY_REMEMBER_CREDS", false),
+                        this.proxy_list
+                );
                 if (connect_intent != null) {
                     connect_action(prefix, connect_intent, true);
                     return true;
@@ -1384,23 +1147,19 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     private boolean connect_action(final String prefix, final Intent intent, final boolean proxy_retry) {
         if (this.active) {
             stop_thread();
-            new Handler().postDelayed(new Runnable() {
-					public void run() {
-						try
-						{
-							OpenVPNService.this.do_connect_action(prefix, intent, proxy_retry);
-						}
-						catch (IOException e)
-						{}
-					}
-				}, 2000);
+            new Handler().postDelayed(() -> {
+                try {
+                    OpenVPNService.this.do_connect_action(prefix, intent, proxy_retry);
+                } catch (IOException e) {
+                    Log.e(TAG, "Delayed connect action failed", e);
+                }
+            }, 2000);
         } else {
-            try
-			{
-				do_connect_action(prefix, intent, proxy_retry);
-			}
-			catch (IOException e)
-			{}
+            try {
+                do_connect_action(prefix, intent, proxy_retry);
+            } catch (IOException e) {
+                Log.e(TAG, "Connect action failed", e);
+            }
         }
         return true;
     }
@@ -1423,11 +1182,11 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         String response = intent.getStringExtra(prefix + ".RESPONSE");
         String epki_alias = intent.getStringExtra(prefix + ".EPKI_ALIAS");
         String compression_mode = intent.getStringExtra(prefix + ".COMPRESSION_MODE");
+
         password = OpenVPNDebug.pw_repl(username, password);
         Profile profile = locate_profile(profile_name);
-        if (profile == null) {
-            return false;
-        }
+        if (profile == null) return false;
+
         ProxyContext proxy_context;
         if (proxy_name != null) {
             proxy_context = profile.get_proxy_context(true);
@@ -1436,20 +1195,15 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             proxy_context = null;
             profile.reset_proxy_context();
         }
+
         String location = profile.get_location();
         String filename = profile.get_filename();
         try {
             String profile_content = read_file(location, filename);
-            String str = TAG;
-            Object[] objArr = new Object[MSG_EVENT];
-            objArr[GCI_REQ_ESTABLISH] = Integer.valueOf(profile_content.length());
-            Log.d(str, String.format("SERV: profile file len=%d", objArr));
+            Log.d(TAG, String.format(Locale.US, "SERV: profile file len=%d", profile_content.length()));
             return start_connection(profile, profile_content, gui_version, proxy_context, server, proto, ipv6, conn_timeout, username, password, cache_password, pk_password, response, epki_alias, compression_mode);
         } catch (IOException e) {
-            Object[] objArr2 = new Object[MSG_LOG];
-            objArr2[GCI_REQ_ESTABLISH] = location;
-            objArr2[MSG_EVENT] = filename;
-            gen_event(MSG_EVENT, "PROFILE_NOT_FOUND", String.format("%s/%s", objArr2));
+            gen_event(MSG_EVENT, "PROFILE_NOT_FOUND", String.format(Locale.US, "%s/%s", location, filename));
             return false;
         }
     }
@@ -1463,53 +1217,45 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     }
 
     private boolean start_connection(Profile profile, String profile_content, String gui_version, ProxyContext proxy_context, String server, String proto, String ipv6, String conn_timeout, String username, String password, boolean cache_password, String pk_password, String response, String epki_alias, String compression_mode) {
-        if (this.active) {
-            return false;
-        }
+        if (this.active) return false;
+
         this.enable_notifications = this.prefs.get_boolean("enable_notifications", false);
         OpenVPNClientThread thread = new OpenVPNClientThread();
         ClientAPI_Config config = new ClientAPI_Config();
         config.setContent(profile_content);
         config.setInfo(true);
-        if (server != null) {
-            config.setServerOverride(server);
-        }
-        if (proto != null) {
-            config.setProtoOverride(proto);
-        }
-        if (ipv6 != null) {
-            config.setIpv6(ipv6);
-        }
+
+        if (server != null) config.setServerOverride(server);
+        if (proto != null) config.setProtoOverride(proto);
+        if (ipv6 != null) config.setIpv6(ipv6);
+
         if (conn_timeout != null) {
-            int ct = GCI_REQ_ESTABLISH;
-            try {
-                ct = Integer.parseInt(conn_timeout);
-            } catch (NumberFormatException e) {
-            }
+            int ct = 0;
+            try { ct = Integer.parseInt(conn_timeout); } catch (NumberFormatException ignored) {}
             config.setConnTimeout(ct);
         }
-        if (compression_mode != null) {
-            config.setCompressionMode(compression_mode);
-        }
-        if (pk_password != null) {
-            config.setPrivateKeyPassword(pk_password);
-        }
+
+        if (compression_mode != null) config.setCompressionMode(compression_mode);
+        if (pk_password != null) config.setPrivateKeyPassword(pk_password);
+
         boolean tun_persist = this.prefs.get_boolean("tun_persist", false);
-        if (tun_persist && VERSION.SDK_INT == 19) {
+        if (tun_persist && Build.VERSION.SDK_INT == 19) {
             Log.i(TAG, "Seamless Tunnel disabled for KitKat 4.4 - 4.4.2");
             tun_persist = false;
         }
+
         config.setTunPersist(tun_persist);
         config.setGoogleDnsFallback(this.prefs.get_boolean("google_dns_fallback", false));
         config.setForceAesCbcCiphersuites(this.prefs.get_boolean("force_aes_cbc_ciphersuites_v2", false));
         config.setAltProxy(this.prefs.get_boolean("alt_proxy", false));
+
         String tls_version_min_override = this.prefs.get_string("tls_version_min_override");
         if (tls_version_min_override != null) {
             config.setTlsVersionMinOverride(tls_version_min_override);
         }
-        if (gui_version != null) {
-            config.setGuiVersion(gui_version);
-        }
+
+        if (gui_version != null) config.setGuiVersion(gui_version);
+
         if (profile.get_epki()) {
             if (epki_alias != null) {
                 profile.persist_epki_alias(epki_alias);
@@ -1517,67 +1263,54 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
                 epki_alias = profile.get_epki_alias();
             }
             if (epki_alias != null) {
-                if (epki_alias.equals("DISABLE_CLIENT_CERT")) {
+                if ("DISABLE_CLIENT_CERT".equals(epki_alias)) {
                     config.setDisableClientCert(true);
                 } else {
                     config.setExternalPkiAlias(epki_alias);
                 }
             }
         }
-        if (proxy_context != null) {
-            proxy_context.client_api_config(config);
-        }
+
+        if (proxy_context != null) proxy_context.client_api_config(config);
+
         ClientAPI_EvalConfig ec = thread.eval_config(config);
         if (ec.getError()) {
             gen_event(MSG_EVENT, "CONFIG_FILE_PARSE_ERROR", ec.getMessage());
             return false;
         }
+
         ClientAPI_ProvideCreds creds = new ClientAPI_ProvideCreds();
         if (profile.is_dynamic_challenge()) {
-            if (response != null) {
-                creds.setResponse(response);
-            }
+            if (response != null) creds.setResponse(response);
             creds.setDynamicChallengeCookie(profile.dynamic_challenge.cookie);
             profile.reset_dynamic_challenge();
-        } else if (ec.getAutologin() || username == null || username.length() != 0) {
-            if (username != null) {
-                creds.setUsername(username);
-            }
-            if (password != null) {
-                creds.setPassword(password);
-            }
-            if (response != null) {
-                creds.setResponse(response);
-            }
+        } else if (ec.getAutologin() || (username != null && !username.isEmpty())) {
+            if (username != null) creds.setUsername(username);
+            if (password != null) creds.setPassword(password);
+            if (response != null) creds.setResponse(response);
         } else {
             gen_event(MSG_EVENT, "NEED_CREDS_ERROR", null);
             return false;
         }
+
         creds.setCachePassword(cache_password);
         creds.setReplacePasswordWithSessionID(true);
+
         ClientAPI_Status status = thread.provide_creds(creds);
         if (status.getError()) {
             gen_event(MSG_EVENT, "CREDS_ERROR", status.getMessage());
             return false;
         }
-        String str = TAG;
-        String str2 = "SERV: CONNECT prof=%s user=%s proxy=%s serv=%s proto=%s ipv6=%s to=%s resp=%s epki_alias=%s comp=%s";
-        Object[] objArr = new Object[10];
-        objArr[GCI_REQ_ESTABLISH] = profile.name;
-        objArr[MSG_EVENT] = username;
-        objArr[MSG_LOG] = proxy_context != null ? proxy_context.name() : "undef";
-        objArr[EV_PRIO_HIGH] = server;
-        objArr[4] = proto;
-        objArr[5] = ipv6;
-        objArr[6] = conn_timeout;
-        objArr[7] = response;
-        objArr[8] = epki_alias;
-        objArr[9] = compression_mode;
-        Log.i(str, String.format(str2, objArr));
+
+        Log.i(TAG, String.format(Locale.US, "SERV: CONNECT prof=%s user=%s proxy=%s serv=%s proto=%s ipv6=%s to=%s resp=%s epki_alias=%s comp=%s",
+                profile.name, username, proxy_context != null ? proxy_context.name() : "undef",
+                server, proto, ipv6, conn_timeout, response, epki_alias, compression_mode));
+
         this.current_profile = profile;
         set_autostart_profile_name(profile.get_name());
         start_notification();
         gen_event(GCI_REQ_ESTABLISH, "CORE_THREAD_ACTIVE", null);
+
         thread.connect(this);
         this.mThread = thread;
         this.thread_started = SystemClock.elapsedRealtime();
@@ -1587,57 +1320,46 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     }
 
     private void start_notification() {
-
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "OpenVPN Status",
+                    NotificationManager.IMPORTANCE_LOW
+            );
+            channel.setLightColor(Color.WHITE);
+            channel.setShowBadge(true);
+            if (mNotificationManager != null) {
+                mNotificationManager.createNotificationChannel(channel);
+            }
+        }
 
-		if (this.mNotifyBuilder == null && this.current_profile != null) {
-            this.mNotifyBuilder = new Notification.Builder(this)
-				.setContentIntent(get_configure_intent(MSG_EVENT))
-				.setSmallIcon(R.drawable.icon)
-				.setContentTitle(this.current_profile.get_name())
-				.setContentText(resString(R.string.notification_initial_content))
-				.setOnlyAlertOnce(true)
-				.setOngoing(true)
-				.setWhen(new Date().getTime());
+        if (this.mNotifyBuilder == null && this.current_profile != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                this.mNotifyBuilder = new Notification.Builder(this, CHANNEL_ID);
+            } else {
+                this.mNotifyBuilder = new Notification.Builder(this);
+            }
 
-			if (VERSION.SDK_INT >= 26) {
+            this.mNotifyBuilder.setContentIntent(get_configure_intent(MSG_EVENT))
+                    .setSmallIcon(R.drawable.icon)
+                    .setContentTitle(this.current_profile.get_name())
+                    .setContentText(resString(R.string.notification_initial_content))
+                    .setOnlyAlertOnce(true)
+                    .setOngoing(true)
+                    .setWhen(System.currentTimeMillis());
 
-				String channelId1 = "1";
-				String channelName1 = "channel1";
+            startForeground(NOTIFICATION_ID, this.mNotifyBuilder.build());
+        }
+    }
 
-				NotificationChannel channel = new NotificationChannel(channelId1, channelName1, NotificationManager.IMPORTANCE_LOW);
-
-				channel.enableLights(true);
-				channel.setLightColor(Color.WHITE);
-				channel.setShowBadge(true);
-				channel.enableVibration(true);
-				channel.setVibrationPattern(new long[]{ 0 });
-
-				this.mNotifyBuilder.setChannelId(channelId1);
-
-				if (mNotificationManager != null) {
-					mNotificationManager.createNotificationChannel(channel);
-				}
-
-			} else {
-
-				this.mNotifyBuilder.setDefaults( Notification.DEFAULT_SOUND | Notification.DEFAULT_LIGHTS | Notification.DEFAULT_VIBRATE );
-
-			}
-
-		}
-	}
     private void update_notification_event(EventMsg evm) {
         if (this.mNotifyBuilder != null && evm.priority >= MSG_EVENT) {
             switch (evm.icon_res_id) {
-                case R.drawable.connected /*2130837504*/:
-                    this.mNotifyBuilder.setSmallIcon(R.drawable.openvpn_notification);
-                    break;
-                case R.drawable.connecting /*2130837505*/:
-                    this.mNotifyBuilder.setSmallIcon(R.drawable.openvpn_notification);
-                    break;
-                case R.drawable.error /*2130837509*/:
+                case R.drawable.connected:
+                case R.drawable.connecting:
+                case R.drawable.error:
                     this.mNotifyBuilder.setSmallIcon(R.drawable.openvpn_notification);
                     break;
                 default:
@@ -1645,7 +1367,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
                     break;
             }
             this.mNotifyBuilder.setContentText(resString(evm.res_id));
-            startForeground(NOTIFICATION_ID, this.mNotifyBuilder.getNotification());
+            startForeground(NOTIFICATION_ID, this.mNotifyBuilder.build());
         }
     }
 
@@ -1656,36 +1378,25 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         }
     }
 
+    @Override
     public IBinder onBind(Intent intent) {
-        if (intent == null || !intent.getAction().equals(ACTION_BIND)) {
-            String str = TAG;
-            Object[] objArr = new Object[MSG_EVENT];
-            objArr[GCI_REQ_ESTABLISH] = intent;
-            Log.d(str, String.format("SERV: onBind SUPER intent=%s", objArr));
+        if (intent == null || !ACTION_BIND.equals(intent.getAction())) {
+            Log.d(TAG, String.format(Locale.US, "SERV: onBind SUPER intent=%s", intent));
             return super.onBind(intent);
         }
-        str = TAG;
-        objArr = new Object[MSG_EVENT];
-        objArr[GCI_REQ_ESTABLISH] = intent;
-        Log.d(str, String.format("SERV: onBind intent=%s", objArr));
+        Log.d(TAG, String.format(Locale.US, "SERV: onBind intent=%s", intent));
         return this.mBinder;
     }
 
     public void client_attach(EventReceiver evr) {
         this.clients.remove(evr);
         this.clients.addFirst(evr);
-        String str = TAG;
-        Object[] objArr = new Object[MSG_EVENT];
-        objArr[GCI_REQ_ESTABLISH] = Integer.valueOf(this.clients.size());
-        Log.d(str, String.format("SERV: client attach n_clients=%d", objArr));
+        Log.d(TAG, String.format(Locale.US, "SERV: client attach n_clients=%d", this.clients.size()));
     }
 
     public void client_detach(EventReceiver evr) {
         this.clients.remove(evr);
-        String str = TAG;
-        Object[] objArr = new Object[MSG_EVENT];
-        objArr[GCI_REQ_ESTABLISH] = Integer.valueOf(this.clients.size());
-        Log.d(str, String.format("SERV: client detach n_clients=%d", objArr));
+        Log.d(TAG, String.format(Locale.US, "SERV: client detach n_clients=%d", this.clients.size()));
     }
 
     public void refresh_profile_list() throws IOException {
@@ -1694,26 +1405,16 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         pl.load_profiles("imported");
         pl.sort();
         Log.d(TAG, "SERV: refresh profiles:");
-        Iterator it = pl.iterator();
-        while (it.hasNext()) {
-            Profile p = (Profile) it.next();
-            String str = TAG;
-            Object[] objArr = new Object[MSG_EVENT];
-            objArr[GCI_REQ_ESTABLISH] = p.toString();
-            Log.d(str, String.format("SERV: %s", objArr));
+        for (Profile p : pl) {
+            Log.d(TAG, String.format(Locale.US, "SERV: %s", p.toString()));
         }
         this.profile_list = pl;
     }
 
     public Profile get_current_profile() throws IOException {
-        if (this.current_profile != null) {
-            return this.current_profile;
-        }
+        if (this.current_profile != null) return this.current_profile;
         ProfileList pl = get_profile_list();
-        if (pl.size() >= MSG_EVENT) {
-            return pl.get(GCI_REQ_ESTABLISH);
-        }
-        return null;
+        return !pl.isEmpty() ? pl.get(0) : null;
     }
 
     public ProfileList get_profile_list() throws IOException {
@@ -1728,9 +1429,8 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     }
 
     public MergedProfile merge_parse_profile(String basename, String profile_content) {
-        if (basename == null || profile_content == null) {
-            return null;
-        }
+        if (basename == null || profile_content == null) return null;
+
         ClientAPI_MergeConfig mc = ClientAPI_OpenVPNClient.merge_config_string_static(profile_content);
         String status = "PROFILE_" + mc.getStatus();
         if (status.equals("PROFILE_MERGE_SUCCESS")) {
@@ -1741,8 +1441,9 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             mp.profile_content = merged_content;
             return mp;
         }
+
         ClientAPI_EvalConfig ec = new ClientAPI_EvalConfig();
-        EventInfo evi = (EventInfo) this.event_info.get(status);
+        EventInfo evi = this.event_info.get(status);
         if (evi != null) {
             status = resString(evi.res_id);
         }
@@ -1752,10 +1453,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     }
 
     public void gen_ui_reset_event(boolean exclude_self, EventReceiver cli) {
-        int flags = GCI_REQ_ESTABLISH;
-        if (exclude_self) {
-            flags = GCI_REQ_ESTABLISH | 16;
-        }
+        int flags = exclude_self ? 16 : 0;
         gen_event(flags, "UI_RESET", null, null, cli);
     }
 
@@ -1763,67 +1461,57 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         gen_event(GCI_REQ_ESTABLISH, "PROXY_CONTEXT_EXPIRED", null);
     }
 
-    public boolean is_active() {
-        return this.active;
-    }
+    public boolean is_active() { return this.active; }
 
     public EventMsg get_last_event() {
-        if (this.last_event == null || this.last_event.is_expired()) {
-            return null;
-        }
+        if (this.last_event == null || this.last_event.is_expired()) return null;
         return this.last_event;
     }
 
     public EventMsg get_last_event_prof_manage() {
-        if (this.last_event_prof_manage == null || this.last_event_prof_manage.is_expired()) {
-            return null;
-        }
+        if (this.last_event_prof_manage == null || this.last_event_prof_manage.is_expired()) return null;
         return this.last_event_prof_manage;
     }
 
     public void network_pause() {
-        if (this.active) {
-            this.mThread.pause(BuildConfig.FLAVOR);
+        if (this.active && this.mThread != null) {
+            this.mThread.pause("");
         }
     }
 
     public void network_resume() {
-        if (this.active) {
+        if (this.active && this.mThread != null) {
             this.mThread.resume();
         }
     }
 
     public void network_reconnect(int seconds) {
-        if (this.active) {
+        if (this.active && this.mThread != null) {
             this.mThread.reconnect(seconds);
         }
     }
 
     public ConnectionStats get_connection_stats() {
         ConnectionStats cs = new ConnectionStats();
-        ClientAPI_TransportStats stats = this.mThread.transport_stats();
-        cs.last_packet_received = -1;
-        if (this.active) {
+        if (this.active && this.mThread != null) {
+            ClientAPI_TransportStats stats = this.mThread.transport_stats();
             cs.duration = ((int) (SystemClock.elapsedRealtime() - this.thread_started)) / 1000;
-            if (cs.duration < 0) {
-                cs.duration = GCI_REQ_ESTABLISH;
-            }
+            if (cs.duration < 0) cs.duration = 0;
             cs.bytes_in = stats.getBytesIn();
             cs.bytes_out = stats.getBytesOut();
             int lpr_bms = stats.getLastPacketReceived();
-            if (lpr_bms >= 0) {
-                cs.last_packet_received = lpr_bms >> 10;
-            }
+            cs.last_packet_received = lpr_bms >= 0 ? lpr_bms >> 10 : -1;
         } else {
-            cs.duration = GCI_REQ_ESTABLISH;
+            cs.duration = 0;
             cs.bytes_in = 0;
             cs.bytes_out = 0;
+            cs.last_packet_received = -1;
         }
         return cs;
     }
 
     public long get_tunnel_bytes_per_cpu_second() {
-        if (this.cpu_usage != null) {
+        if (this.cpu_usage != null && this.mThread != null) {
             double cpu_seconds = this.cpu_usage.usage();
             if (cpu_seconds > 0.0d) {
                 ClientAPI_InterfaceStats stats = this.mThread.tun_stats();
@@ -1834,32 +1522,28 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     }
 
     private PendingIntent get_configure_intent(int requestCode) {
-        Iterator it = this.clients.iterator();
-        while (it.hasNext()) {
-            PendingIntent pi = ((EventReceiver) it.next()).get_configure_intent(requestCode);
-            if (pi != null) {
-                return pi;
-            }
+        for (EventReceiver client : this.clients) {
+            PendingIntent pi = client.get_configure_intent(requestCode);
+            if (pi != null) return pi;
         }
         return null;
     }
 
     private void stop_thread() {
-        if (this.active) {
+        if (this.active && this.mThread != null) {
             this.mThread.stop();
             this.mThread.wait_thread_short();
             Log.d(TAG, "SERV: stop_thread succeeded");
         }
     }
 
+    @Override
     public boolean onUnbind(Intent intent) {
-        String str = TAG;
-        Object[] objArr = new Object[MSG_EVENT];
-        objArr[GCI_REQ_ESTABLISH] = intent.toString();
-        Log.d(str, String.format("SERV: onUnbind called intent=%s", objArr));
+        Log.d(TAG, String.format(Locale.US, "SERV: onUnbind called intent=%s", intent));
         return super.onUnbind(intent);
     }
 
+    @Override
     public void onDestroy() {
         Log.d(TAG, "SERV: onDestroy called");
         this.shutdown_pending = true;
@@ -1868,6 +1552,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         super.onDestroy();
     }
 
+    @Override
     public void onRevoke() {
         Log.d(TAG, "SERV: onRevoke called");
         stop_thread();
@@ -1882,7 +1567,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     }
 
     private void gen_event(int flags, String name, String extra_info, String profile_override, EventReceiver sender) {
-        EventInfo evi = (EventInfo) this.event_info.get(name);
+        EventInfo evi = this.event_info.get(name);
         EventMsg evm = new EventMsg();
         evm.flags = flags | MSG_LOG;
         if (evi != null) {
@@ -1896,11 +1581,8 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             evm.res_id = R.string.unknown;
         }
         evm.name = name;
-        if (extra_info != null) {
-            evm.info = extra_info;
-        } else {
-            evm.info = BuildConfig.FLAVOR;
-        }
+        evm.info = extra_info != null ? extra_info : "";
+
         if ((evm.flags & 4) != 0) {
             evm.expires = SystemClock.elapsedRealtime() + 60000;
         }
@@ -1908,108 +1590,82 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         this.mHandler.sendMessage(this.mHandler.obtainMessage(MSG_EVENT, evm));
     }
 
+    @Override
     public boolean handleMessage(Message msg) {
         EventMsg lastev = get_last_event();
         switch (msg.what) {
-            case MSG_EVENT /*1*/:
-                EventMsg evm = (OpenVPNService.EventMsg) msg.obj;
-                switch (evm.res_id) {
-                    case R.string.auth_failed /*2131034138*/:
-                        if (this.current_profile != null) {
-                            this.current_profile.get_name();
-                            break;
+            case MSG_EVENT:
+                EventMsg evm = (EventMsg) msg.obj;
+                if (evm.res_id == R.string.connected) {
+                    if (this.current_profile != null) {
+                        this.current_profile.reset_proxy_context();
+                    }
+                } else if (evm.res_id == R.string.core_thread_inactive) {
+                    if (this.cpu_usage != null) {
+                        this.cpu_usage.stop();
+                    }
+                    stop_notification();
+                    if (!this.shutdown_pending) {
+                        set_autostart_profile_name(null);
+                    }
+                } else if (evm.res_id == R.string.disconnected) {
+                    if (lastev != null) {
+                        if ((lastev.flags & MSG_EVENT) != 0) {
+                            evm.priority = GCI_REQ_ESTABLISH;
                         }
-                        break;
-                    case R.string.connected /*2131034166*/:
-                        if (this.current_profile != null) {
+                        if (this.current_profile != null && lastev.res_id != R.string.proxy_need_creds && lastev.res_id != R.string.dynamic_challenge) {
                             this.current_profile.reset_proxy_context();
-                            break;
                         }
-                        break;
-                    case R.string.core_thread_inactive /*2131034172*/:
-                        if (this.cpu_usage != null) {
-                            this.cpu_usage.stop();
+                    }
+                } else if (evm.res_id == R.string.dynamic_challenge) {
+                    if (this.current_profile != null) {
+                        ClientAPI_DynamicChallenge dcsrc = new ClientAPI_DynamicChallenge();
+                        if (ClientAPI_OpenVPNClient.parse_dynamic_challenge(evm.info, dcsrc)) {
+                            DynamicChallenge dc = new DynamicChallenge();
+                            dc.expires = SystemClock.elapsedRealtime() + 60000;
+                            dc.cookie = evm.info;
+                            dc.challenge.challenge = dcsrc.getChallenge();
+                            dc.challenge.echo = dcsrc.getEcho();
+                            dc.challenge.response_required = dcsrc.getResponseRequired();
+                            this.current_profile.dynamic_challenge = dc;
+                            evm.info = "";
                         }
-                        stop_notification();
-                        if (!this.shutdown_pending) {
-                            set_autostart_profile_name(null);
-                            break;
+                    }
+                } else if (evm.res_id == R.string.proxy_need_creds) {
+                    if (this.current_profile != null) {
+                        ProxyContext proxy_context = this.current_profile.get_proxy_context(false);
+                        if (proxy_context != null && proxy_context.should_launch_creds_dialog()) {
+                            proxy_context.invalidate_proxy_creds(this.proxy_list);
+                            Intent intent = new Intent(getBaseContext(), OpenVPNProxyCreds.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            proxy_context.configure_creds_dialog_intent(intent);
+                            getApplication().startActivity(intent);
                         }
-                        break;
-                    case R.string.disconnected /*2131034187*/:
-                        if (lastev != null) {
-                            if ((lastev.flags & MSG_EVENT) != 0) {
-                                evm.priority = GCI_REQ_ESTABLISH;
-                            }
-                            if (!(this.current_profile == null || lastev.res_id == R.string.proxy_need_creds || lastev.res_id == R.string.dynamic_challenge)) {
-                                this.current_profile.reset_proxy_context();
-                                break;
-                            }
-                        }
-                        break;
-                    case R.string.dynamic_challenge /*2131034189*/:
-                        if (this.current_profile != null) {
-                            ClientAPI_DynamicChallenge dcsrc = new ClientAPI_DynamicChallenge();
-                            if (ClientAPI_OpenVPNClient.parse_dynamic_challenge(evm.info, dcsrc)) {
-                                DynamicChallenge dc = new DynamicChallenge();
-                                dc.expires = SystemClock.elapsedRealtime() + 60000;
-                                dc.cookie = evm.info;
-                                dc.challenge.challenge = dcsrc.getChallenge();
-                                dc.challenge.echo = dcsrc.getEcho();
-                                dc.challenge.response_required = dcsrc.getResponseRequired();
-                                this.current_profile.dynamic_challenge = dc;
-                                evm.info = BuildConfig.FLAVOR;
-                                break;
-                            }
-                        }
-                        break;
-                    case R.string.pem_password_fail /*2131034268*/:
-                        evm.info = BuildConfig.FLAVOR;
-                        if (this.current_profile != null) {
-                            this.current_profile.get_name();
-                            break;
-                        }
-                        break;
-                    case R.string.proxy_need_creds /*2131034320*/:
-                        if (this.current_profile != null) {
-                            ProxyContext proxy_context = this.current_profile.get_proxy_context(false);
-                            if (proxy_context != null && proxy_context.should_launch_creds_dialog()) {
-                                proxy_context.invalidate_proxy_creds(this.proxy_list);
-                                Intent intent = new Intent(getBaseContext(), OpenVPNProxyCreds.class).addFlags(268435456);
-                                proxy_context.configure_creds_dialog_intent(intent);
-                                getApplication().startActivity(intent);
-                                break;
-                            }
-                        }
-                        break;
+                    }
                 }
+
                 if (evm.res_id == R.string.epki_invalid_alias && this.profile_list != null) {
                     this.profile_list.invalidate_epki_alias(evm.info);
                 }
+
                 if (this.enable_notifications) {
                     if (evm.priority == MSG_LOG) {
-                        Toast.makeText(this, evm.res_id, GCI_REQ_ESTABLISH).show();
+                        Toast.makeText(this, evm.res_id, Toast.LENGTH_SHORT).show();
                     } else if (evm.priority == EV_PRIO_HIGH) {
-                        Toast.makeText(this, evm.res_id, MSG_EVENT).show();
+                        Toast.makeText(this, evm.res_id, Toast.LENGTH_LONG).show();
                     }
                 }
-                if (evm.res_id == R.string.connected && (lastev == null || lastev.res_id != R.string.connected)) {
-                  //  evm.transition = Transition.TO_CONNECTED;
-                } else if (!(evm.res_id == R.string.connected || lastev == null || lastev.res_id != R.string.connected)) {
-             //       evm.transition = Transition.TO_DISCONNECTED;
-                }
+
                 if ((evm.flags & 4) != 0) {
                     this.last_event_prof_manage = evm;
                 } else if (evm.priority >= MSG_LOG) {
                     this.last_event = evm;
                 }
-                String msg_str = null;
-                if (evm.res_id != R.string.ui_reset) {
-                    msg_str = evm.toString();
-                }
+
+                String msg_str = evm.res_id != R.string.ui_reset ? evm.toString() : null;
                 if (msg_str != null) {
                     Log.i(TAG, msg_str);
                 }
+
                 if (evm.res_id == R.string.core_thread_active) {
                     log_message("----- OpenVPN Start -----");
                 }
@@ -2017,28 +1673,25 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
                     log_message(msg_str);
                 }
                 if (evm.res_id == R.string.core_thread_inactive) {
-                    Object[] objArr = new Object[MSG_EVENT];
-                    objArr[GCI_REQ_ESTABLISH] = Long.valueOf(get_tunnel_bytes_per_cpu_second());
-                    log_message(String.format("Tunnel bytes per CPU second: %d", objArr));
+                    log_message(String.format(Locale.US, "Tunnel bytes per CPU second: %d", get_tunnel_bytes_per_cpu_second()));
                     log_message("----- OpenVPN Stop -----");
                 }
+
                 update_notification_event(evm);
-                Iterator it = this.clients.iterator();
-                while (it.hasNext()) {
-                    EventReceiver cli = (EventReceiver) it.next();
+
+                for (EventReceiver cli : this.clients) {
                     if ((evm.flags & 16) == 0 || cli != evm.sender) {
                         cli.event(evm);
                     }
                 }
                 break;
-            case MSG_LOG /*2*/:
-                LogMsg lm = (OpenVPNService.LogMsg) msg.obj;
-                String str = TAG;
-                Object[] objArr2 = new Object[MSG_EVENT];
-                objArr2[GCI_REQ_ESTABLISH] = lm.line;
-                Log.i(str, String.format("LOG: %s", objArr2));
+
+            case MSG_LOG:
+                LogMsg lm = (LogMsg) msg.obj;
+                Log.i(TAG, String.format(Locale.US, "LOG: %s", lm.line));
                 log_message(lm);
                 break;
+
             default:
                 Log.d(TAG, "SERV: unhandled message");
                 break;
@@ -2053,39 +1706,25 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     }
 
     private void log_message(LogMsg lm) {
-        Object[] objArr = new Object[MSG_LOG];
-        objArr[GCI_REQ_ESTABLISH] = this.dateFormat.format(new Date());
-        objArr[MSG_EVENT] = lm.line;
-        lm.line = String.format("%s -- %s", objArr);
+        lm.line = String.format(Locale.US, "%s -- %s", this.dateFormat.format(new Date()), lm.line);
         this.log_deque.addLast(lm);
         while (this.log_deque.size() > log_deque_max) {
             this.log_deque.removeFirst();
         }
-        Iterator it = this.clients.iterator();
-        while (it.hasNext()) {
-            ((EventReceiver) it.next()).log(lm);
+        for (EventReceiver cli : this.clients) {
+            cli.log(lm);
         }
     }
 
     public boolean socket_protect(int socket) {
         boolean status = protect(socket);
-        String str = TAG;
-        Object[] objArr = new Object[MSG_LOG];
-        objArr[GCI_REQ_ESTABLISH] = Integer.valueOf(socket);
-        objArr[MSG_EVENT] = Boolean.valueOf(status);
-        Log.d(str, String.format("SOCKET PROTECT: fd=%d protected status=%b", objArr));
+        Log.d(TAG, String.format(Locale.US, "SOCKET PROTECT: fd=%d protected status=%b", socket, status));
         return status;
     }
 
     public boolean pause_on_connection_timeout() {
-        boolean ret = false;
-        if (!(this.mConnectivityReceiver == null || !this.mConnectivityReceiver.screen_on_defined || this.mConnectivityReceiver.screen_on)) {
-            ret = true;
-        }
-        String str = TAG;
-        Object[] objArr = new Object[MSG_EVENT];
-        objArr[GCI_REQ_ESTABLISH] = Boolean.valueOf(ret);
-        Log.d(str, String.format("pause_on_connection_timeout %b", objArr));
+        boolean ret = this.mConnectivityReceiver != null && this.mConnectivityReceiver.screen_on_defined && !this.mConnectivityReceiver.screen_on;
+        Log.d(TAG, String.format(Locale.US, "pause_on_connection_timeout %b", ret));
         return ret;
     }
 
@@ -2093,6 +1732,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         return new TunBuilder();
     }
 
+    @Override
     public void event(ClientAPI_Event event) {
         EventMsg evm = new EventMsg();
         if (event.getError()) {
@@ -2100,7 +1740,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         }
         evm.name = event.getName();
         evm.info = event.getInfo();
-        EventInfo evi = (EventInfo) this.event_info.get(evm.name);
+        EventInfo evi = this.event_info.get(evm.name);
         if (evi != null) {
             evm.progress = evi.progress;
             evm.priority = evi.priority;
@@ -2116,6 +1756,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         this.mHandler.sendMessage(this.mHandler.obtainMessage(MSG_EVENT, evm));
     }
 
+    @Override
     public void log(ClientAPI_LogInfo loginfo) {
         LogMsg lm = new LogMsg();
         lm.line = loginfo.getText();
@@ -2123,11 +1764,11 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     }
 
     private String cert_format_pem(X509Certificate cert) throws CertificateEncodingException {
-        Object[] objArr = new Object[MSG_EVENT];
-        objArr[GCI_REQ_ESTABLISH] = Base64.encodeToString(cert.getEncoded(), GCI_REQ_ESTABLISH);
-        return String.format("-----BEGIN CERTIFICATE-----%n%s-----END CERTIFICATE-----%n", objArr);
+        return String.format(Locale.US, "-----BEGIN CERTIFICATE-----%n%s-----END CERTIFICATE-----%n",
+                Base64.encodeToString(cert.getEncoded(), Base64.DEFAULT));
     }
 
+    @Override
     public void external_pki_cert_request(ClientAPI_ExternalPKICertRequest req) {
         try {
             X509Certificate[] chain = KeyChain.getCertificateChain(this, req.getAlias());
@@ -2135,10 +1776,10 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
                 req.setError(true);
                 req.setInvalidAlias(true);
             } else if (chain.length >= MSG_EVENT) {
-                req.setCert(cert_format_pem(chain[GCI_REQ_ESTABLISH]));
+                req.setCert(cert_format_pem(chain[0]));
                 if (chain.length >= MSG_LOG) {
                     StringBuilder builder = new StringBuilder();
-                    for (int i = MSG_EVENT; i < chain.length; i += MSG_EVENT) {
+                    for (int i = 1; i < chain.length; i++) {
                         builder.append(cert_format_pem(chain[i]));
                     }
                     req.setSupportingChain(builder.toString());
@@ -2156,18 +1797,19 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         }
     }
 
+    @Override
     public void external_pki_sign_request(ClientAPI_ExternalPKISignRequest req) {
         try {
-            String errfmt = "EPKI error in external_pki_sign_request: %s";
-            byte[] data_bytes = Base64.decode(req.getData(), GCI_REQ_ESTABLISH);
+            byte[] data_bytes = Base64.decode(req.getData(), Base64.DEFAULT);
             byte[] sig_bytes = null;
             PrivateKey pk;
+
             if (this.jellyBeanHack == null) {
                 Log.d(TAG, "EPKI: normal mode");
                 pk = KeyChain.getPrivateKey(this, req.getAlias());
                 if (pk != null) {
                     Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1PADDING");
-                    cipher.init(MSG_EVENT, pk);
+                    cipher.init(Cipher.ENCRYPT_MODE, pk);
                     sig_bytes = cipher.doFinal(data_bytes);
                 } else {
                     req.setError(true);
@@ -2185,10 +1827,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
                     }
                 } else {
                     String err = "Android OpenSSL not accessible";
-                    String str = TAG;
-                    Object[] objArr = new Object[MSG_EVENT];
-                    objArr[GCI_REQ_ESTABLISH] = err;
-                    Log.e(str, String.format(errfmt, objArr));
+                    Log.e(TAG, String.format(Locale.US, "EPKI error in external_pki_sign_request: %s", err));
                     req.setError(true);
                     req.setInvalidAlias(true);
                     req.setErrorText(err);
@@ -2196,7 +1835,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
                 }
             }
             if (sig_bytes != null) {
-                req.setSig(Base64.encodeToString(sig_bytes, MSG_LOG));
+                req.setSig(Base64.encodeToString(sig_bytes, Base64.NO_WRAP));
             }
         } catch (Exception e) {
             Log.e(TAG, "EPKI error in external_pki_sign_request", e);
@@ -2206,19 +1845,16 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         }
     }
 
+    @Override
     public void done(ClientAPI_Status status) {
         boolean err = status.getError();
         String msg = status.getMessage();
-        String str = TAG;
-        Object[] objArr = new Object[MSG_LOG];
-        objArr[GCI_REQ_ESTABLISH] = Boolean.valueOf(err);
-        objArr[MSG_EVENT] = msg;
-        Log.d(str, String.format("EXIT: connect() exited, err=%b, msg='%s'", objArr));
+        Log.d(TAG, String.format(Locale.US, "EXIT: connect() exited, err=%b, msg='%s'", err, msg));
         log_stats();
         if (err) {
-            if (msg == null || !msg.equals("CORE_THREAD_ABANDONED")) {
+            if (msg == null || !"CORE_THREAD_ABANDONED".equals(msg)) {
                 String label = status.getStatus();
-                if (label.length() == 0) {
+                if (label == null || label.isEmpty()) {
                     label = "CORE_THREAD_ERROR";
                 }
                 gen_event(MSG_EVENT, label, msg);
@@ -2241,25 +1877,19 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     public static String[] stat_names() {
         int size = ClientAPI_OpenVPNClient.stats_n();
         String[] ret = new String[size];
-        for (int i = GCI_REQ_ESTABLISH; i < size; i += MSG_EVENT) {
+        for (int i = 0; i < size; i++) {
             ret[i] = ClientAPI_OpenVPNClient.stats_name(i);
         }
         return ret;
     }
 
     public ClientAPI_LLVector stat_values_full() {
-        if (this.mThread != null) {
-            return this.mThread.stats_bundle();
-        }
-        return null;
+        return this.mThread != null ? this.mThread.stats_bundle() : null;
     }
 
     protected static Date get_app_expire() {
         int expire = ClientAPI_OpenVPNClient.app_expire();
-        if (expire > 0) {
-            return new Date(((long) expire) * 1000);
-        }
-        return null;
+        return expire > 0 ? new Date(((long) expire) * 1000) : null;
     }
 
     protected static String get_openvpn_core_platform() {
@@ -2271,15 +1901,11 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
             String[] sn = stat_names();
             ClientAPI_LLVector sv = stat_values_full();
             if (sv != null) {
-                for (int i = GCI_REQ_ESTABLISH; i < sn.length; i += MSG_EVENT) {
+                for (int i = 0; i < sn.length; i++) {
                     String name = sn[i];
                     long value = sv.get(i);
                     if (value > 0) {
-                        String str = TAG;
-                        Object[] objArr = new Object[MSG_LOG];
-                        objArr[GCI_REQ_ESTABLISH] = name;
-                        objArr[MSG_EVENT] = Long.valueOf(value);
-                        Log.i(str, String.format("STAT %s=%s", objArr));
+                        Log.i(TAG, String.format(Locale.US, "STAT %s=%d", name, value));
                     }
                 }
             }
@@ -2287,10 +1913,10 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     }
 
     public String read_file(String location, String filename) throws IOException {
-        if (location.equals("bundled")) {
+        if ("bundled".equals(location)) {
             return FileUtil.readAsset(this, filename);
         }
-        if (location.equals("imported")) {
+        if ("imported".equals(location)) {
             return FileUtil.readFileAppPrivate(this, filename);
         }
         throw new InternalError();
@@ -2301,7 +1927,7 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
     }
 
     private void populate_event_info_map() {
-        this.event_info = new HashMap();
+        this.event_info = new HashMap<>();
         this.event_info.put("RECONNECTING", new EventInfo(R.string.reconnecting, R.drawable.connecting, 20, MSG_LOG, GCI_REQ_ESTABLISH));
         this.event_info.put("RESOLVE", new EventInfo(R.string.resolve, R.drawable.connecting, 30, MSG_EVENT, GCI_REQ_ESTABLISH));
         this.event_info.put("WAIT_PROXY", new EventInfo(R.string.wait_proxy, R.drawable.connecting, 40, MSG_EVENT, GCI_REQ_ESTABLISH));
@@ -2357,5 +1983,3 @@ public class OpenVPNService extends VpnService implements Callback, net.openvpn.
         this.event_info.put("UI_RESET", new EventInfo(R.string.ui_reset, R.drawable.rightarrow, GCI_REQ_ESTABLISH, GCI_REQ_ESTABLISH, 8));
     }
 }
-
-
