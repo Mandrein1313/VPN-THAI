@@ -133,7 +133,7 @@ public class XMLRPC {
             serializer.endTag(null, TAG_DATA).endTag(null, TYPE_ARRAY);
         } else if (object instanceof Map) {
             serializer.startTag(null, TYPE_STRUCT);
-            for (Entry<String, Object> entry : ((Map) object).entrySet()) {
+            for (Entry<String, Object> entry : ((Map<String, Object>) object).entrySet()) {
                 String key = (String) entry.getKey();
                 Object value = entry.getValue();
                 serializer.startTag(null, TAG_MEMBER);
@@ -154,7 +154,7 @@ public class XMLRPC {
     public static Object deserialize(XmlPullParser parser) throws XmlPullParserException, IOException {
         parser.require(2, null, TAG_VALUE);
         if (parser.isEmptyElementTag()) {
-            return BuildConfig.FLAVOR;
+            return "";
         }
         Object obj = null;
         boolean hasType = true;
@@ -163,7 +163,7 @@ public class XMLRPC {
             parser.nextTag();
             typeNodeName = parser.getName();
             if (typeNodeName.equals(TAG_VALUE) && parser.getEventType() == 3) {
-                return BuildConfig.FLAVOR;
+                return "";
             }
         } catch (XmlPullParserException e) {
             hasType = false;
@@ -236,7 +236,7 @@ public class XMLRPC {
                 parser.nextTag();
             }
             parser.require(3, null, TYPE_STRUCT);
-            Map<String, Object> obj3 = map;
+            obj = map;
         } else {
             throw new IOException("Cannot deserialize " + parser.getName());
         }

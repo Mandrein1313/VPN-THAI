@@ -24,11 +24,11 @@ public class ProxyList {
     public static class Item {
         public boolean allow_cleartext_auth = false;
         public String friendly_name = null;
-        public String host = BuildConfig.FLAVOR;
-        public String password = BuildConfig.FLAVOR;
-        public String port = BuildConfig.FLAVOR;
+        public String host = "";
+        public String password = "";
+        public String port = "";
         public boolean remember_creds = false;
-        public String username = BuildConfig.FLAVOR;
+        public String username = "";
 
         public String name() {
             if (this.friendly_name != null) {
@@ -45,8 +45,8 @@ public class ProxyList {
             if (!this.remember_creds) {
                 return false;
             }
-            this.username = BuildConfig.FLAVOR;
-            this.password = BuildConfig.FLAVOR;
+            this.username = "";
+            this.password = "";
             this.remember_creds = false;
             return true;
         }
@@ -229,8 +229,8 @@ public class ProxyList {
 
     private void forget_creds(Item item) {
         if (item != null) {
-            item.username = BuildConfig.FLAVOR;
-            item.password = BuildConfig.FLAVOR;
+            item.username = "";
+            item.password = "";
             this.dirty = true;
         }
     }
