@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.app.AlertDialog.Builder;
 import android.app.PendingIntent;
 import android.app.ProgressDialog;
+import android.app.AlarmManager;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -22,14 +23,11 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Vibrator;
 import android.preference.PreferenceManager;
-import android.support.annotation.NonNull;
-import android.support.design.internal.BottomNavigationItemView;
-import android.support.design.internal.BottomNavigationMenuView;
-import android.support.design.widget.BottomNavigationView;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.ActivityCompat.OnRequestPermissionsResultCallback;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.widget.Toolbar;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.app.ActivityCompat.OnRequestPermissionsResultCallback;
+import androidx.core.content.ContextCompat;
+import androidx.appcompat.widget.Toolbar;
 import android.text.method.PasswordTransformationMethod;
 import android.text.method.SingleLineTransformationMethod;
 import android.util.Log;
@@ -61,6 +59,7 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.TextView.OnEditorActionListener;
 import android.widget.Toast;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -73,6 +72,7 @@ import java.lang.reflect.Field;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.Semaphore;
+
 import net.lingala.zip4j.core.ZipFile;
 import net.openvpn.openvpn.OpenVPNService.Challenge;
 import net.openvpn.openvpn.OpenVPNService.ConnectionStats;
@@ -80,8 +80,7 @@ import net.openvpn.openvpn.OpenVPNService.EventMsg;
 import net.openvpn.openvpn.OpenVPNService.Profile;
 import net.openvpn.openvpn.OpenVPNService.ProfileList;
 import org.json.JSONObject;
-import android.app.*;
- 
+
 public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermissionsResultCallback, OnClickListener, OnTouchListener, OnItemSelectedListener, OnEditorActionListener {
     private static final int REQUEST_IMPORT_PKCS12 = 3;
     private static final int REQUEST_IMPORT_PROFILE = 2;
@@ -156,18 +155,17 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
     private EditText username_edit;
     private View username_group;
 
-	public void createConnectShortcut(String prof_name, String toString)
-	{
-		// TODO: Implement this method
-	}
- 
+    public void createConnectShortcut(String prof_name, String toString) {
+        // TODO: Implement this method
+    }
+
     private enum FinishOnConnect {
         DISABLED,
         ENABLED,
         ENABLED_ACROSS_ONSTART,
         PENDING
     }
- 
+
     private enum ProfileSource {
         UNDEF,
         SERVICE,
@@ -176,11 +174,12 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         SPINNER,
         LIST0
     }
-	private SharedPreferences pref;
-	private SharedPreferences.Editor editor;
-	private OpenVPNClient.llllIl llllÏî;
-	public static final String ZIP_PASSWORD = new String(new byte[]{116, 111, 111, 110, 98, 111, 111, 109, 49});
-	
+
+    private SharedPreferences pref;
+    private SharedPreferences.Editor editor;
+    private UpdateManager updateManager;
+    public static final String ZIP_PASSWORD = new String(new byte[]{116, 111, 111, 110, 98, 111, 111, 109, 49});
+
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Intent intent = getIntent();
@@ -188,10 +187,10 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         Object[] objArr = new Object[S_BIND_CALLED];
         objArr[0] = intent.toString();
         Log.d(str, String.format("CLI: onCreate intent=%s", objArr));
-		this.prefs = new PrefUtil(PreferenceManager.getDefaultSharedPreferences(this));
-		this.pwds = new PasswordUtil(PreferenceManager.getDefaultSharedPreferences(this));
-		pref = PreferenceManager.getDefaultSharedPreferences(this);
-		editor = pref.edit();
+        this.prefs = new PrefUtil(PreferenceManager.getDefaultSharedPreferences(this));
+        this.pwds = new PasswordUtil(PreferenceManager.getDefaultSharedPreferences(this));
+        pref = PreferenceManager.getDefaultSharedPreferences(this);
+        editor = pref.edit();
         init_default_preferences(this.prefs);
         if (this.prefs.get_boolean("ui_dark_theme", RETAIN_AUTH)) {
             setCurrentTheme(16973931);
@@ -200,358 +199,346 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         }
         setContentView(R.layout.form);
         load_ui_elements();
-		llllÏî = new llllIl(this);
+
+        // ตัวจัดการระบบอัปเดตเวอร์ชันใหม่
+        updateManager = new UpdateManager(this);
+
         doBindService();
         warn_app_expiration(this.prefs);
         new AppRate(this).setMinDaysUntilPrompt(14).setMinLaunchesUntilPrompt(10).init();
- 
     }
-	
-	public class Constant
-	{
-		public static final String CHECK_UPDATE = new String(new byte[]{104, 116, 116, 112, 115, 58, 47, 47, 115, 117, 109, 109, 101, 114, 45, 110, 101, 116, 46, 111, 110, 108, 105, 110, 101, 47, 102, 47, 100, 97, 114, 117, 109, 97, 46, 116, 120, 116});
-	}
 
-	private class llllIl
+    public static class Constant {
+        public static final String CHECK_UPDATE = new String(new byte[]{104, 116, 116, 112, 115, 58, 47, 47, 115, 117, 109, 109, 101, 114, 45, 110, 101, 116, 46, 111, 110, 108, 105, 110, 101, 47, 102, 47, 100, 97, 114, 117, 109, 97, 46, 116, 120, 116});
+    }
 
-	{
-		private OpenVPNClient llllIIJ;
-		private SharedPreferences preference;
-		private SharedPreferences.Editor llllI1;
-		private WebView llll1ll;
-		boolean first = false;
+    // ==========================================
+    // คลาสระบบจัดการอัปเดตใหม่ (UpdateManager)
+    // ==========================================
+    public class UpdateManager {
 
-		private SharedPreferences.Editor up_editor;
-		public llllIl(OpenVPNClient activity)
-		{
-			llllIIJ = activity;
-			preference = PreferenceManager.getDefaultSharedPreferences(llllIIJ);
-			up_editor = pref.edit();
-			llll1ll = new WebView(llllIIJ);
-			llll1ll.getSettings().setJavaScriptEnabled(true);
-			llll1ll.setWebViewClient(new WebViewClient());
-			llll1ll.setWebChromeClient(new WebChromeClient());
-			llll1ll.setDownloadListener(new llllIII());
-			llll1ll.setVisibility(View.GONE);
-			llllIIJ.getWindow().addContentView(llll1ll, new ViewGroup.LayoutParams(-1,-1));
-			boolean llllI11 = new File(llllIIJ.getFilesDir(), "Version.txt").exists();
+        private final OpenVPNClient activity;
+        private final SharedPreferences preference;
+        private final SharedPreferences.Editor upEditor;
+        private final WebView webView;
+        private boolean isSilentCheck = false;
 
-			if (llllI11) {
-				return;
-			} else {
-				llllI1J();
-			}
-		}
-		public void a()
-		{
-			llllI1l();
-			first = true;
-		}
-		public void b()
-		{
-			llllI1l();
-			first = false;
-		}
-		private void llllI1l()
-		{
-			try {
-				new llllIll().execute(Constant.CHECK_UPDATE);
-			} catch (Exception e) {
+        public UpdateManager(OpenVPNClient activity) {
+            this.activity = activity;
+            this.preference = PreferenceManager.getDefaultSharedPreferences(activity);
+            this.upEditor = preference.edit();
 
-			}
-		}
-		private void llllJ1I()
-		{
-			Toast.makeText(OpenVPNClient.this, 
-						   "เซิร์ฟเวอร์เป็นเวอร์ชั่นล่าสุดแล้ว", Toast.LENGTH_LONG).show();
-		}
+            webView = new WebView(activity);
+            webView.getSettings().setJavaScriptEnabled(true);
+            webView.setWebViewClient(new WebViewClient());
+            webView.setWebChromeClient(new WebChromeClient());
+            webView.setDownloadListener(new ConfigDownloadListener());
+            webView.setVisibility(View.GONE);
 
-		private void save_vesion()
-		{
-			try {
-				File file = new File(llllIIJ.getFilesDir(), "Version.txt");
-				JSONObject item = new JSONObject();
-				String str = new JSONObject(llllJ1(new File(llllIIJ.getFilesDir(), "Json.txt"))).getString("Version");
-				item.put("Version", ""+str+"");
-				item.put("Versioncn", ""+str+"");
-				OutputStream out = new FileOutputStream(file);
-				out.write(item.toString().getBytes());
-				out.flush();
-				out.close();
-				up_editor.putBoolean("isFirstRun",true).apply();
-			} catch (Exception e) {
-			}}	
+            activity.getWindow().addContentView(webView, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+            ));
 
-		private void llllIJ(String str, final String url, String changlog)
-		{
+            File versionFile = new File(activity.getFilesDir(), "Version.txt");
+            if (!versionFile.exists()) {
+                initDefaultVersionFile();
+            }
+        }
 
-			AlertDialog build = new AlertDialog.Builder(llllIIJ)
-				.setTitle("ตรวจพบการอัพเดท "+str+"")
-				.setMessage(""+changlog)
-				.setPositiveButton("ตกลง", new DialogInterface.OnClickListener() {
-					public void onClick(DialogInterface dialog, int id) {
+        public void checkUpdateAuto() {
+            this.isSilentCheck = true;
+            startCheckUpdateTask();
+        }
 
-						llll1ll.loadUrl(url);
-					}
-				})
+        public void checkUpdateManual() {
+            this.isSilentCheck = false;
+            startCheckUpdateTask();
+        }
 
-				.setNegativeButton("ยกเลิก", new DialogInterface.OnClickListener() {
+        private void startCheckUpdateTask() {
+            try {
+                new CheckUpdateTask().execute(Constant.CHECK_UPDATE);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
 
-					private String vesion;
+        private void showAlreadyLatestToast() {
+            Toast.makeText(activity, "เซิร์ฟเวอร์เป็นเวอร์ชั่นล่าสุดแล้ว", Toast.LENGTH_LONG).show();
+        }
 
-					public void onClick(DialogInterface dialog, int id) {
-						update_cn_confirm_save(vesion);
-						dialog.cancel();
-					}
-				}).show();
-		}
+        private void showUpdateDialog(String version, final String downloadUrl, String changelog) {
+            new AlertDialog.Builder(activity)
+                    .setTitle("ตรวจพบการอัพเดท " + version)
+                    .setMessage(changelog)
+                    .setPositiveButton("ตกลง", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int id) {
+                            webView.loadUrl(downloadUrl);
+                        }
+                    })
+                    .setNegativeButton("ยกเลิก", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int id) {
+                            saveVersionOnCancel("0.0");
+                            dialog.cancel();
+                        }
+                    })
+                    .show();
+        }
 
-		private void  update_cn_confirm_save(String vesion)
-		{
-			try {
-				File file = new File(llllIIJ.getFilesDir(), "Version.txt");
-				JSONObject o = new JSONObject();
-				o.put("Version", "0.0");
-				o.put("Versioncn", ""+vesion+"");
-				OutputStream out = new FileOutputStream(file);
-				out.write(o.toString().getBytes());
-				out.flush();
-				out.close();
-				up_editor.putBoolean("isFirstRun",true).apply();
-			} catch (Exception e) {
-			}
-		}
+        private void saveVersionOnCancel(String version) {
+            try {
+                File file = new File(activity.getFilesDir(), "Version.txt");
+                JSONObject json = new JSONObject();
+                json.put("Version", "0.0");
+                json.put("Versioncn", version);
 
-		private class llllIII implements DownloadListener
-		{
-			@Override
-			public void onDownloadStart(String llllJI1, String llllJJ, String llllJJl, String llllJJI, long llllJJJ)
-			{
-				new llllIIl().execute(llllJI1);
-			}
-		}
-		private class llllIIl extends AsyncTask<String,String, File>
-		{
-			private ProgressDialog llllJJ1;
-			@Override
-			protected File doInBackground(String... llllJI1)
-			{
-				HttpURLConnection llllIJJ = null;
-				try {
-					URL url = new URL(llllJI1[0]);
-					llllIJJ = (HttpURLConnection)url.openConnection();
-					llllIJJ.setRequestMethod("GET");
-					llllIJJ.connect();
+                saveStringToFile(file, json.toString());
+                upEditor.putBoolean("isFirstRun", true).apply();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
 
-					File file = new File(llllIIJ.getFilesDir(), "Configs.zip");
-					InputStream in = url.openStream();
-					OutputStream out = new FileOutputStream(file);
-					byte[] llllII1  = new byte[1024];
-					while (true) {
-						int read = in.read(llllII1, 0, llllII1.length);
-						if (read <= 0) {
-							break;
-						}
-						out.write(llllII1, 0, read);
-					}
-					out.flush();
-					out.close();
-					in.close();
-					return file;
-				} catch (Exception e) {
-				} finally {
-					llllIJJ.disconnect();
-				}
-				return null;
-			}
-			@Override
-			protected void onPreExecute()
-			{
-				llllJJ1 = new ProgressDialog(llllIIJ);
-				llllJJ1.setTitle("กำลังอัพเดทเซิร์ฟเวอร์");
-				llllJJ1.setMessage("กรุณารอสักครู่...");
-				llllJJ1.show();
+        private void initDefaultVersionFile() {
+            try {
+                File file = new File(activity.getFilesDir(), "Version.txt");
+                JSONObject json = new JSONObject();
+                json.put("Version", "1.0");
 
-				super.onPreExecute();}
+                saveStringToFile(file, json.toString());
+                upEditor.putBoolean("isFirstRun", true).apply();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
 
-			@Override
-			protected void onPostExecute(File result)
-			{
-				llllJJ1.dismiss();
-				delete();
+        private boolean isNewVersionAvailable(String newVersion, String currentVersion) {
+            String[] newParts = newVersion.split("\\.");
+            String[] currentParts = currentVersion.split("\\.");
+            int length = Math.max(newParts.length, currentParts.length);
 
-				try 
-				{
-					File file = result;
-					ZipFile zip = new ZipFile(file);
-					if (zip.isEncrypted()) {
-						zip.setPassword(OpenVPNClient.ZIP_PASSWORD);}
+            for (int i = 0; i < length; i++) {
+                int v1 = i < newParts.length ? Integer.parseInt(newParts[i]) : 0;
+                int v2 = i < currentParts.length ? Integer.parseInt(currentParts[i]) : 0;
+                if (v1 < v2) return false;
+                if (v1 > v2) return true;
+            }
+            return false;
+        }
 
-					zip.extractAll(llllIIJ.getFilesDir().getAbsolutePath());
+        public String readFileToString(File file) {
+            StringBuilder builder = new StringBuilder();
+            try (InputStream in = new FileInputStream(file);
+                 Reader reader = new BufferedReader(new InputStreamReader(in))) {
+                char[] buffer = new char[1024];
+                int read;
+                while ((read = reader.read(buffer, 0, buffer.length)) > 0) {
+                    builder.append(buffer, 0, read);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return builder.toString();
+        }
 
-					file.delete();
-					finish();
-					startActivity(getIntent());			
-					Runtime.getRuntime().exit(0);
-					overridePendingTransition(0,0);
+        private void saveStringToFile(File file, String content) throws Exception {
+            try (OutputStream out = new FileOutputStream(file)) {
+                out.write(content.getBytes());
+                out.flush();
+            }
+        }
 
-					llllJ1J();} 
-				catch (Exception e) {
-					t(e.getMessage());}
+        private void showToast(String message) {
+            Toast.makeText(activity, message, Toast.LENGTH_SHORT).show();
+        }
 
-				super.onPostExecute(result);}
+        private class ConfigDownloadListener implements DownloadListener {
+            @Override
+            public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
+                new DownloadZipTask().execute(url);
+            }
+        }
 
-			private void delete(){
-				File dir = getFilesDir();
-				if (dir.isDirectory()) 
-				{
-					String[] children = dir.list();
-					for (int i = 0; i < children.length; i++)
-					{
-						if (!children[i].contains("txt") && !children[i].contains("zip")){
-							new File(dir, children[i]).delete();}}}}
+        private class CheckUpdateTask extends AsyncTask<String, String, JSONObject> {
+            @Override
+            protected JSONObject doInBackground(String... params) {
+                HttpURLConnection conn = null;
+                try {
+                    URL url = new URL(params[0]);
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.connect();
 
-			private void llllJ1J() {
+                    StringBuilder builder = new StringBuilder();
+                    try (Reader reader = new BufferedReader(new InputStreamReader(url.openStream()))) {
+                        char[] buffer = new char[1024];
+                        int read;
+                        while ((read = reader.read(buffer, 0, buffer.length)) > 0) {
+                            builder.append(buffer, 0, read);
+                        }
+                    }
+                    return new JSONObject(builder.toString());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    if (conn != null) conn.disconnect();
+                }
+                return null;
+            }
 
-				AlertDialog.Builder b = new AlertDialog.Builder(llllIIJ);
-				b.setTitle("อัพเดทเซิร์ฟเวอร์สำเร็จ");
-				b.setMessage("กรุณากดปุ่มรีสตาร์ท");
-				b.setCancelable(false);
-				b.setPositiveButton("รีสตาร์ท", llllJIl());
-				b.show();}
+            @Override
+            protected void onPostExecute(JSONObject result) {
+                if (result == null) return;
 
-			private DialogInterface.OnClickListener llllJIl()
-			{
-				return new DialogInterface.OnClickListener()
-				{
-					@Override
-					public void onClick(DialogInterface llllJIJ, int llllJI1)
-					{
-						Intent llllJlI = new Intent(llllIIJ, OpenVPNClient.class);
-						int llllJll = 123456;
-						PendingIntent llllJl = PendingIntent.getActivity(llllIIJ, llllJll,    llllJlI, PendingIntent.FLAG_CANCEL_CURRENT);
-						AlarmManager llllJlJ = (AlarmManager)llllIIJ.getSystemService(Context.ALARM_SERVICE);
-						llllJlJ.set(AlarmManager.RTC, System.currentTimeMillis() + 200, llllJl);
-						System.exit(0);}};}}
+                try {
+                    File versionFile = new File(activity.getFilesDir(), "Version.txt");
+                    String currentVersion = "0.0";
 
-		private class llllIll extends AsyncTask<String, String,JSONObject>
-  		{
-			@Override
-			protected JSONObject doInBackground(String... llllJI1)
-			{
-				HttpURLConnection llllIJI = null;
-				try {
-					URL url = new URL(llllJI1[0]);
-					llllIJI = (HttpURLConnection)url.openConnection();
-					llllIJI.connect();
+                    if (versionFile.exists()) {
+                        JSONObject localJson = new JSONObject(readFileToString(versionFile));
+                        currentVersion = localJson.optString("Version", "0.0");
+                    }
 
-					StringBuilder b = new StringBuilder();
-					Reader llllJ1l = new BufferedReader(new InputStreamReader(url.openStream()));
-					char[] c = new char[1024];
-					while (true) {
-						int read = llllJ1l.read(c, 0, c.length);
-						if (read <= 0) {
-							break;
-						}
-						b.append(c, 0, read);
-					}
-					return new JSONObject(b.toString());
-				} catch (Exception e) {
-				} finally {
-					llllIJI.disconnect();
-				}
-				return null;
-			}
-			@Override
-			protected void onPostExecute(JSONObject result)
-			{
-				try {
-					JSONObject llllJ = result;
-					String versionfile = new JSONObject(llllJ1(new File(llllIIJ.getFilesDir(), "Version.txt"))).getString("Version");
-					String version = llllJ.getString("Version");
-					String url = llllJ.getString("Url");
-					String changelog = llllJ.getString("Changelog");
-					if (llll1l(version, versionfile)) {
-						llllIJ(version, url, changelog);
-						File file = new File(llllIIJ.getFilesDir(), "Version.txt");
-						OutputStream out = new FileOutputStream(file);
-						out.write(result.toString().getBytes());
-						out.flush();
-						out.close();
-					} else {
-						if (first) {
-							return;
-						} else {
-							llllJ1I();
-						}
-					}
-				} catch (Exception e) {
-				}
-				super.onPostExecute(result);
-			}
-  		}
-  		private void llllI1J()
-  		{
-			try {
-				File file = new File(llllIIJ.getFilesDir(), "Version.txt");
-				JSONObject o = new JSONObject();
-				o.put("Version", "1.0");
-				OutputStream out = new FileOutputStream(file);
-				out.write(o.toString().getBytes());
-				out.flush();
-				out.close();
-				llllI1.putBoolean("isFirstRun",true).apply();
-			} catch (Exception e) {
-			}
-  		}
-  		private boolean llll1l(String llllIl1, String llllII) {
-			String[] llllJ11 = llllIl1.split("\\.");
-			String[] llll1 = llllII.split("\\.");
-			int i = 0;
-			while (i < llllJ11.length && i < llll1.length && llllJ11[i].equals(llll1[i])) {
-				i++;
-			}
-			if (i < llllJ11.length && i < llll1.length) {
-				int llllIJ1 = Integer.valueOf(llllJ11[i]).compareTo(Integer.valueOf(llll1[i]));
-				return Integer.signum(llllIJ1) > 0;
-			}
-			return Integer.signum(llllJ11.length - llll1.length) > 0;
-  		}
-  		public String llllJ1(File file)
-  		{
-			StringBuilder b = new StringBuilder();
-			try
-			{
-				InputStream in = new FileInputStream(file);
-				Reader llllJ1l = new BufferedReader(new InputStreamReader(in));
-				char[] c = new char[1024];
-				while (true) {
-					int read = llllJ1l.read(c, 0, c.length);
-					if (read <= 0) {
-						break;
-					}
-					b.append(c, 0, read);
+                    String serverVersion = result.getString("Version");
+                    String downloadUrl = result.getString("Url");
+                    String changelog = result.getString("Changelog");
 
-				}
+                    if (isNewVersionAvailable(serverVersion, currentVersion)) {
+                        showUpdateDialog(serverVersion, downloadUrl, changelog);
 
-			}
-			catch (Exception e) {
-			}
-			return b.toString();
-  		}
-  		public void t(String s)
+                        File file = new File(activity.getFilesDir(), "Version.txt");
+                        saveStringToFile(file, result.toString());
+                    } else {
+                        if (!isSilentCheck) {
+                            showAlreadyLatestToast();
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
 
-  		{
-			Toast.makeText(llllIIJ,s,-1).show();
+        private class DownloadZipTask extends AsyncTask<String, String, File> {
+            private ProgressDialog progressDialog;
 
-		}
+            @Override
+            protected void onPreExecute() {
+                progressDialog = new ProgressDialog(activity);
+                progressDialog.setTitle("กำลังอัพเดทเซิร์ฟเวอร์");
+                progressDialog.setMessage("กรุณารอสักครู่...");
+                progressDialog.setCancelable(false);
+                progressDialog.show();
+            }
 
-	}
-	private void setCurrentTheme(int p0)
-	{
-		// TODO: Implement this method
-	}
- 
+            @Override
+            protected File doInBackground(String... params) {
+                HttpURLConnection conn = null;
+                try {
+                    URL url = new URL(params[0]);
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.connect();
+
+                    File zipFile = new File(activity.getFilesDir(), "Configs.zip");
+                    try (InputStream in = url.openStream();
+                         OutputStream out = new FileOutputStream(zipFile)) {
+                        byte[] buffer = new byte[1024];
+                        int read;
+                        while ((read = in.read(buffer, 0, buffer.length)) > 0) {
+                            out.write(buffer, 0, read);
+                        }
+                        out.flush();
+                    }
+                    return zipFile;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    if (conn != null) conn.disconnect();
+                }
+                return null;
+            }
+
+            @Override
+            protected void onPostExecute(File zipFile) {
+                if (progressDialog != null && progressDialog.isShowing()) {
+                    progressDialog.dismiss();
+                }
+
+                if (zipFile == null || !zipFile.exists()) {
+                    showToast("ดาวน์โหลดไฟล์ล้มเหลว");
+                    return;
+                }
+
+                cleanOldFiles();
+
+                try {
+                    ZipFile zip = new ZipFile(zipFile);
+                    if (zip.isEncrypted()) {
+                        zip.setPassword(OpenVPNClient.ZIP_PASSWORD);
+                    }
+                    zip.extractAll(activity.getFilesDir().getAbsolutePath());
+
+                    zipFile.delete();
+                    showSuccessAndRestartDialog();
+
+                } catch (Exception e) {
+                    showToast("เกิดข้อผิดพลาด: " + e.getMessage());
+                }
+            }
+
+            private void cleanOldFiles() {
+                File dir = activity.getFilesDir();
+                if (dir.isDirectory()) {
+                    String[] children = dir.list();
+                    if (children != null) {
+                        for (String child : children) {
+                            if (!child.contains("txt") && !child.contains("zip")) {
+                                new File(dir, child).delete();
+                            }
+                        }
+                    }
+                }
+            }
+
+            private void showSuccessAndRestartDialog() {
+                new AlertDialog.Builder(activity)
+                        .setTitle("อัพเดทเซิร์ฟเวอร์สำเร็จ")
+                        .setMessage("กรุณากดปุ่มรีสตาร์ท")
+                        .setCancelable(false)
+                        .setPositiveButton("รีสตาร์ท", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                restartApp();
+                            }
+                        })
+                        .show();
+            }
+
+            private void restartApp() {
+                Intent intent = new Intent(activity, OpenVPNClient.class);
+                PendingIntent pendingIntent = PendingIntent.getActivity(
+                        activity,
+                        123456,
+                        intent,
+                        PendingIntent.FLAG_CANCEL_CURRENT
+                );
+
+                AlarmManager alarmManager = (AlarmManager) activity.getSystemService(Context.ALARM_SERVICE);
+                if (alarmManager != null) {
+                    alarmManager.set(AlarmManager.RTC, System.currentTimeMillis() + 200, pendingIntent);
+                }
+                System.exit(0);
+            }
+        }
+    }
+
+    private void setCurrentTheme(int p0) {
+        // TODO: Implement this method
+    }
+
     protected void onNewIntent(Intent intent) {
         String str = TAG;
         Object[] objArr = new Object[S_BIND_CALLED];
@@ -559,24 +546,24 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         Log.d(str, String.format("CLI: onNewIntent intent=%s", objArr));
         setIntent(intent);
     }
- 
+
     protected void post_bind() {
         Log.d(TAG, "CLI: post bind");
         this.startup_state |= S_BIND_CALLED;
         process_autostart_intent(is_active());
         render_last_event();
     }
- 
+
     public boolean onCreateOptionsMenu(Menu menu) {
         super.onCreateOptionsMenu(menu);
         getMenuInflater().inflate(R.menu.menu, menu);
         return true;
     }
- 
+
     public void event(EventMsg ev) {
         render_event(ev, RETAIN_AUTH, is_active(), RETAIN_AUTH);
     }
- 
+
     private void render_last_event() {
         boolean active = is_active();
         EventMsg ev = get_last_event();
@@ -594,7 +581,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             render_event(pev, true, active, true);
         }
     }
- 
+
     private boolean show_conn_info_field(String text, int field_id, int row_id) {
         int i = 0;
         boolean vis = text.length() > 0 ? true : RETAIN_AUTH;
@@ -607,16 +594,16 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         row.setVisibility(i);
         return vis;
     }
- 
+
     private void reset_conn_info() {
         show_conn_info(new ClientAPI_ConnectionInfo());
     }
- 
+
     private void show_conn_info(ClientAPI_ConnectionInfo ci) {
         this.info_group.setVisibility((((((((RETAIN_AUTH | show_conn_info_field(ci.getVpnIp4(), R.id.ipv4_addr, R.id.ipv4_addr_row)) | show_conn_info_field(ci.getVpnIp6(), R.id.ipv6_addr, R.id.ipv6_addr_row)) | show_conn_info_field(ci.getUser(), R.id.user, R.id.user_row)) | show_conn_info_field(ci.getClientIp(), R.id.client_ip, R.id.client_ip_row)) | show_conn_info_field(ci.getServerHost(), R.id.server_host, R.id.server_host_row)) | show_conn_info_field(ci.getServerIp(), R.id.server_ip, R.id.server_ip_row)) | show_conn_info_field(ci.getServerPort(), R.id.server_port, R.id.server_port_row)) | show_conn_info_field(ci.getServerProto(), R.id.server_proto, R.id.server_proto_row) ? 0 : 8);
         set_visibility_stats_expansion_group();
     }
- 
+
     private void set_visibility_stats_expansion_group() {
         int i = 0;
         boolean expand_stats = this.prefs.get_boolean("expand_stats", RETAIN_AUTH);
@@ -627,7 +614,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         view.setVisibility(i);
         this.details_more_less.setText(expand_stats ? R.string.touch_less : R.string.touch_more);
     }
- 
+
     private void render_event(EventMsg ev, boolean reset, boolean active, boolean cached) {
         int flags = ev.flags;
         if (ev.is_reflected(this)) {
@@ -704,8 +691,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         if (ev.res_id == R.string.connected && this.finish_on_connect != FinishOnConnect.DISABLED) {
             if (this.prefs.get_boolean("autostart_finish_on_connect", RETAIN_AUTH)) {
                 final OpenVPNClient self = this;
-                if (this.delayed_finish_on_connect == FinishOnConnect.PENDING)
-				{
+                if (this.delayed_finish_on_connect == FinishOnConnect.PENDING) {
                     this.delayed_finish_on_connect = this.finish_on_connect;
                     return;
                 }
@@ -722,15 +708,14 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         }
     }
 
-	private void ok_dialog(String resString, String info, Object run)
-	{
-		// TODO: Implement this method
-	}
- 
+    private void ok_dialog(String resString, String info, Object run) {
+        // TODO: Implement this method
+    }
+
     private void stop_service() {
         submitDisconnectIntent(true);
     }
- 
+
     private void stop() {
         cancel_stats();
         doUnbindService();
@@ -739,13 +724,13 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             stop_service();
         }
     }
- 
+
     protected void onStop() {
         Log.d(TAG, "CLI: onStop");
         cancel_stats();
         super.onStop();
     }
- 
+
     protected void onStart() {
         super.onStart();
         Log.d(TAG, "CLI: onStart");
@@ -761,13 +746,13 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             ui_setup(active, UIF_RESET, null);
         }
     }
- 
+
     protected void onDestroy() {
         stop();
         Log.d(TAG, "CLI: onDestroy called");
         super.onDestroy();
     }
- 
+
     private boolean process_autostart_intent(boolean active) {
         if ((this.startup_state & REQUEST_IMPORT_PKCS12) == REQUEST_IMPORT_PKCS12) {
             Intent intent = getIntent();
@@ -796,34 +781,34 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         }
         return RETAIN_AUTH;
     }
- 
+
     private void cancel_ui_reset() {
         this.ui_reset_timer_handler.removeCallbacks(this.ui_reset_timer_task);
     }
- 
+
     private void schedule_ui_reset(long delay) {
         cancel_ui_reset();
         this.ui_reset_timer_handler.postDelayed(this.ui_reset_timer_task, delay);
     }
- 
+
     private void hide_status() {
         this.status_view.setVisibility(8);
     }
- 
+
     private void show_status(String text) {
         this.status_view.setVisibility(0);
         this.status_view.setText(text);
     }
- 
+
     private void show_status(int res_id) {
         this.status_view.setVisibility(0);
         this.status_view.setText(res_id);
     }
- 
+
     private void show_status_icon(int res_id) {
         this.status_icon_view.setImageResource(res_id);
     }
- 
+
     private void show_progress(int progress, boolean active) {
         if (progress <= 0 || progress >= 99) {
             this.progress_bar.setVisibility(8);
@@ -832,16 +817,16 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         this.progress_bar.setVisibility(0);
         this.progress_bar.setProgress(progress);
     }
- 
+
     private void cancel_stats() {
         this.stats_timer_handler.removeCallbacks(this.stats_timer_task);
     }
- 
+
     private void schedule_stats() {
         cancel_stats();
         this.stats_timer_handler.postDelayed(this.stats_timer_task, 1000);
     }
- 
+
     private static String render_bandwidth(long bw) {
         String postfix;
         float div;
@@ -869,7 +854,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         objArr[S_BIND_CALLED] = postfix;
         return String.format("%.2f %s", objArr);
     }
- 
+
     private String render_last_pkt_recv(int sec) {
         if (sec >= 3600) {
             return resString(R.string.lpr_gt_1_hour_ago);
@@ -895,7 +880,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             return BuildConfig.FLAVOR;
         }
     }
- 
+
     private void show_stats() {
         if (is_active()) {
             ConnectionStats stats = get_connection_stats();
@@ -905,7 +890,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             this.bytes_out_view.setText(render_bandwidth(stats.bytes_out));
         }
     }
- 
+
     private void clear_stats() {
         this.last_pkt_recv_view.setText(BuildConfig.FLAVOR);
         this.duration_view.setText(BuildConfig.FLAVOR);
@@ -913,7 +898,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         this.bytes_out_view.setText(BuildConfig.FLAVOR);
         reset_conn_info();
     }
- 
+
     private int n_profiles_loaded() {
         ProfileList proflist = profile_list();
         if (proflist != null) {
@@ -921,7 +906,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         }
         return 0;
     }
- 
+
     private String selected_profile_name() {
         String ret = null;
         ProfileList proflist = profile_list();
@@ -933,7 +918,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         }
         return ret;
     }
- 
+
     private Profile selected_profile() {
         ProfileList proflist = profile_list();
         if (proflist != null) {
@@ -941,14 +926,14 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         }
         return null;
     }
- 
+
     private void clear_auth() {
         this.username_edit.setText(BuildConfig.FLAVOR);
         this.pk_password_edit.setText(BuildConfig.FLAVOR);
         this.password_edit.setText(BuildConfig.FLAVOR);
         this.response_edit.setText(BuildConfig.FLAVOR);
     }
- 
+
     private void ui_setup(boolean active, int flags, String profile_override) {
         boolean orig_active = active;
         boolean autostart = RETAIN_AUTH;
@@ -1160,13 +1145,13 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             start_connect();
         }
     }
- 
+
     private void set_enabled(EditText editText, boolean state) {
         editText.setEnabled(state);
         editText.setFocusable(state);
         editText.setFocusableInTouchMode(state);
     }
- 
+
     private void raise_file_selection_dialog(int requestCode) {
         switch (requestCode) {
             case S_ONSTART_CALLED /*2*/:
@@ -1179,7 +1164,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                 return;
         }
     }
- 
+
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         if (grantResults.length != 0) {
             switch (requestCode) {
@@ -1198,7 +1183,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             }
         }
     }
- 
+
     private void request_file_selection_dialog(int requestCode) {
         if (ContextCompat.checkSelfPermission(this, "android.permission.READ_EXTERNAL_STORAGE") == 0) {
             raise_file_selection_dialog(requestCode);
@@ -1208,7 +1193,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         perms[0] = "android.permission.READ_EXTERNAL_STORAGE";
         ActivityCompat.requestPermissions(this, perms, requestCode);
     }
- 
+
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.about_menu /*2131427498*/:
@@ -1267,16 +1252,14 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         return true;
     }
 
-	private void createAppShortcut(String resString)
-	{
-		// TODO: Implement this method
-	}
+    private void createAppShortcut(String resString) {
+        // TODO: Implement this method
+    }
 
-	private void createDisconnectShortcut(String resString)
-	{
-		// TODO: Implement this method
-	}
- 
+    private void createDisconnectShortcut(String resString) {
+        // TODO: Implement this method
+    }
+
     public void onClick(View v) {
         cancel_ui_reset();
         this.autostart_profile_name = null;
@@ -1290,7 +1273,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             openContextMenu(v);
         }
     }
- 
+
     private void start_connect() {
         cancel_ui_reset();
         Intent intent = VpnService.prepare(this);
@@ -1308,7 +1291,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         Log.d(TAG, "CLI: app is already authorized as VPN actor");
         resolve_epki_alias_then_connect();
     }
- 
+
     public boolean onTouch(View v, MotionEvent event) {
         boolean new_expand_stats = RETAIN_AUTH;
         if (v.getId() != R.id.conn_details_boxed || event.getAction() != 0) {
@@ -1321,7 +1304,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         set_visibility_stats_expansion_group();
         return true;
     }
- 
+
     public void onItemSelected(AdapterView<?> parent, View v, int position, long id) {
         cancel_ui_reset();
         int viewid = parent.getId();
@@ -1340,17 +1323,17 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             gen_ui_reset_event(true);
         }
     }
- 
+
     public void onNothingSelected(AdapterView<?> adapterView) {
     }
- 
+
     private void menu_add(ContextMenu menu, int id, boolean enabled, String menu_key) {
         MenuItem item = menu.add(0, id, 0, id).setEnabled(enabled);
         if (menu_key != null) {
             item.setIntent(new Intent().putExtra("net.openvpn.openvpn.MENU_KEY", menu_key));
         }
     }
- 
+
     private String get_menu_key(MenuItem item) {
         if (item != null) {
             Intent intent = item.getIntent();
@@ -1360,7 +1343,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         }
         return null;
     }
- 
+
     public void onCreateContextMenu(ContextMenu menu, View v, ContextMenuInfo menuInfo) {
         boolean z = RETAIN_AUTH;
         Log.d(TAG, "CLI: onCreateContextMenu");
@@ -1404,7 +1387,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             }
         }
     }
- 
+
     public boolean onContextItemSelected(MenuItem item) {
         Log.d(TAG, "CLI: onContextItemSelected");
         String prof_name;
@@ -1478,7 +1461,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                 return RETAIN_AUTH;
         }
     }
- 
+
     private void launch_create_profile_shortcut_dialog(final String prof_name) {
         View view = getLayoutInflater().inflate(R.layout.create_shortcut_dialog, null);
         final EditText name_field = (EditText) view.findViewById(R.id.shortcut_name);
@@ -1497,7 +1480,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         };
         new Builder(this).setTitle(R.string.create_shortcut_title).setView(view).setPositiveButton(R.string.create_shortcut_yes, dialogClickListener).setNegativeButton(R.string.create_shortcut_cancel, dialogClickListener).show();
     }
- 
+
     private void launch_rename_profile_dialog(final String orig_prof_name) {
         View view = getLayoutInflater().inflate(R.layout.rename_profile_dialog, null);
         final EditText name_field = (EditText) view.findViewById(R.id.rename_profile_name);
@@ -1516,7 +1499,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         };
         new Builder(this).setTitle(R.string.rename_profile_title).setView(view).setPositiveButton(R.string.rename_profile_yes, dialogClickListener).setNegativeButton(R.string.rename_profile_cancel, dialogClickListener).show();
     }
- 
+
     private void delete_proxy_with_confirm(final String proxy_name) {
         final ProxyList proxy_list = get_proxy_list();
         DialogInterface.OnClickListener dialogClickListener = new DialogInterface.OnClickListener() {
@@ -1537,7 +1520,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         };
         new Builder(this).setTitle(R.string.proxy_delete_confirm_title).setMessage(proxy_name).setPositiveButton(R.string.proxy_delete_confirm_yes, dialogClickListener).setNegativeButton(R.string.proxy_delete_confirm_cancel, dialogClickListener).show();
     }
- 
+
     private void forget_creds_with_confirm() {
         final Context context = this;
         DialogInterface.OnClickListener dialogClickListener = new DialogInterface.OnClickListener() {
@@ -1565,11 +1548,11 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         };
         new Builder(this).setTitle(R.string.forget_creds_title).setMessage(R.string.forget_creds_message).setPositiveButton(R.string.forget_creds_yes, dialogClickListener).setNegativeButton(R.string.forget_creds_cancel, dialogClickListener).show();
     }
- 
+
     public PendingIntent get_configure_intent(int requestCode) {
         return PendingIntent.getActivity(this, requestCode, getIntent(), 268435456);
     }
- 
+
     private void resolve_epki_alias_then_connect() {
         resolveExternalPkiAlias(selected_profile(), new EpkiPost() {
             public void post_dispatch(String alias) {
@@ -1577,7 +1560,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             }
         });
     }
- 
+
     private void do_connect(String epki_alias) {
         String app_name = "net.openvpn.connect.android";
         String proxy_name = null;
@@ -1634,11 +1617,11 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         clear_stats();
         submitConnectIntent(profile_name, server, vpn_proto, ipv6, conn_timeout, username, password, is_auth_pwd_save, pk_password, response, epki_alias, compression_mode, proxy_name, null, null, true, get_gui_version(app_name));
     }
- 
+
     private void import_profile(String path) {
         submitImportProfileViaPathIntent(path);
     }
- 
+
     protected void onActivityResult(int request, int result, Intent data) {
         String str = TAG;
         Object[] objArr = new Object[S_ONSTART_CALLED];
@@ -1692,7 +1675,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                 return;
         }
     }
- 
+
     private TextView last_visible_edittext() {
         for (int i = 0; i < this.textgroups.length; i += S_BIND_CALLED) {
             if (this.textgroups[i].getVisibility() == 0) {
@@ -1701,7 +1684,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         }
         return null;
     }
- 
+
     public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
         if (v != last_visible_edittext()) {
             return RETAIN_AUTH;
@@ -1711,7 +1694,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         }
         return true;
     }
- 
+
     private void req_focus(EditText editText) {
         boolean auto_keyboard = this.prefs.get_boolean("auto_keyboard", RETAIN_AUTH);
         if (editText != null) {
@@ -1727,14 +1710,14 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             dismiss_keyboard();
         }
     }
- 
+
     private void raise_keyboard(EditText editText) {
         InputMethodManager mgr = (InputMethodManager) getSystemService("input_method");
         if (mgr != null) {
             mgr.showSoftInput(editText, S_BIND_CALLED);
         }
     }
- 
+
     private void dismiss_keyboard() {
         InputMethodManager mgr = (InputMethodManager) getSystemService("input_method");
         if (mgr != null) {
@@ -1745,7 +1728,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             }
         }
     }
- 
+
     private void load_ui_elements() {
         this.main_scroll_view = (ScrollView) findViewById(R.id.main_scroll_view);
         this.post_import_help_blurb = findViewById(R.id.post_import_help_blurb);
