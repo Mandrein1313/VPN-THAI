@@ -39,7 +39,7 @@ import net.openvpn.openvpn.OpenVPNService.LogMsg;
 import net.openvpn.openvpn.OpenVPNService.MergedProfile;
 import net.openvpn.openvpn.OpenVPNService.Profile;
 import net.openvpn.openvpn.OpenVPNService.ProfileList;
-import android.support.v7.app.*;
+import androidx.appcompat.app.AppCompatActivity;
 
 public abstract class OpenVPNClientBase extends AppCompatActivity implements EventReceiver {
     private static final String TAG = "OpenVPNClientBase";
