@@ -559,9 +559,10 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                 .show();
     }
 
-    private void ok_dialog(String title, String message) {
+    protected void ok_dialog(String title, String message) {
         ok_dialog(title, message, null);
     }
+
 
     @Override
     protected void onNewIntent(Intent intent) {
