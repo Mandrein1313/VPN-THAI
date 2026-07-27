@@ -265,7 +265,7 @@
 	<string name="tls_version_min_override_title">เวอร์ชัน TLS ขั้นต่ำ</string>
 	<string name="touch_less">แตะเพื่อดูรายละเอียดที่น้อยลง</string>
 	<string name="touch_more">แตะเพื่อดูรายละเอียดเพิ่มเติม</string>
-	<string name="trademark">modify by สัก สุริยัน</string>
+	<string name="trademark">modify by ต่อ สัก </string>
 	<string name="tun_iface_create">เกิดข้อผิดพลาดในการสร้างส่วนต่อประสาน</string>
 	<string name="tun_ko_error">อาจเป็นไปได้ว่าโมดูลเคอร์เนล tun.ko ไม่ได้โหลดในเคอร์เนล Android ของคุณ</string>
 	<string name="tun_ko_title">ปัญหาในการสร้างอินเตอร์เฟส TUN</string>
