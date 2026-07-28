@@ -1,552 +1,526 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/main_scroll_view"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#F4F6F9"
-    android:fillViewport="true">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
-
-        <!-- กล่องแจ้งเตือนหลัง Import -->
-        <LinearLayout
-            android:id="@+id/post_import_help_blurb"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:visibility="gone"
-            style="@style/info_box">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="@drawable/info_box"
-                android:orientation="vertical"
-                android:padding="12dp">
-
-                <TextView
-                    android:text="@string/import_help_title"
-                    android:textColor="#1976D2"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    style="@style/item" />
-
-                <TextView
-                    android:id="@+id/import_help_text"
-                    android:text="@string/import_help_text"
-                    android:textColor="#555555"
-                    android:textSize="14sp"
-                    style="@style/subtitle" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- การ์ดส่วนตั้งค่าโปรไฟล์ & เซิร์ฟเวอร์ -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:background="#FFFFFF"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <!-- Profile -->
-            <RelativeLayout
-                android:id="@+id/profile_group"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_toLeftOf="@+id/profile_edit"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:text="@string/profile_prompt"
-                        android:textColor="#333333"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
-                    <Spinner
-                        android:id="@+id/profile"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:focusable="false"
-                        android:prompt="@string/profile_prompt" />
-                </LinearLayout>
-
-                <ImageButton
-                    android:id="@+id/profile_edit"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:layout_alignParentRight="true"
-                    android:layout_centerVertical="true"
-                    android:background="?android:attr/selectableItemBackground"
-                    android:src="@drawable/edit" />
-            </RelativeLayout>
-
-            <!-- Proxy -->
-            <RelativeLayout
-                android:id="@+id/proxy_group"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_toLeftOf="@+id/proxy_edit"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:text="@string/proxy_prompt"
-                        android:textColor="#333333"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
-                    <Spinner
-                        android:id="@+id/proxy"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:prompt="@string/proxy_prompt" />
-                </LinearLayout>
-
-                <ImageButton
-                    android:id="@+id/proxy_edit"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:layout_alignParentRight="true"
-                    android:layout_centerVertical="true"
-                    android:background="?android:attr/selectableItemBackground"
-                    android:src="@drawable/edit" />
-            </RelativeLayout>
-
-            <!-- Server -->
-            <LinearLayout
-                android:id="@+id/server_group"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-            <TextView
-                android:text="@string/server_prompt"
-                android:textColor="#333333"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <Spinner
-                android:id="@+id/server"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:prompt="@string/server_prompt" />
-            </LinearLayout>
-
-        </LinearLayout>
-
-        <!-- การ์ดส่วนลงชื่อเข้าใช้ (Username / Password) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:background="#FFFFFF"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <!-- Username -->
-            <LinearLayout
-                android:id="@+id/username_group"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:orientation="vertical">
-
-                <TextView
-                    android:text="@string/username"
-                    android:textColor="#333333"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <EditText
-                    android:id="@+id/username"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:imeOptions="actionNext"
-                    android:inputType="text"
-                    android:nextFocusDown="@+id/pk_password"
-                    android:paddingHorizontal="12dp" />
-            </LinearLayout>
-
-            <!-- PK Password -->
-            <LinearLayout
-                android:id="@+id/pk_password_group"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:orientation="vertical">
-
-                <TextView
-                    android:text="@string/pk_password"
-                    android:textColor="#333333"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <EditText
-                        android:id="@+id/pk_password"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_alignParentLeft="true"
-                        android:layout_toLeftOf="@+id/pk_password_save"
-                        android:imeOptions="actionNext"
-                        android:inputType="textPassword"
-                        android:nextFocusDown="@+id/password"
-                        android:paddingHorizontal="12dp" />
-
-                    <CheckBox
-                        android:id="@+id/pk_password_save"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_alignParentRight="true"
-                        android:layout_centerVertical="true"
-                        android:text="@string/pk_password_save_prompt" />
-                </RelativeLayout>
-            </LinearLayout>
-
-            <!-- Password -->
-            <LinearLayout
-                android:id="@+id/password_group"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:orientation="vertical">
-
-                <TextView
-                    android:text="@string/password"
-                    android:textColor="#333333"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <EditText
-                        android:id="@+id/password"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_alignParentLeft="true"
-                        android:layout_toLeftOf="@+id/password_save"
-                        android:imeOptions="actionNext"
-                        android:inputType="textPassword"
-                        android:nextFocusDown="@+id/response"
-                        android:paddingHorizontal="12dp" />
-
-                    <CheckBox
-                        android:id="@+id/password_save"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_alignParentRight="true"
-                        android:layout_centerVertical="true"
-                        android:text="@string/password_save_prompt" />
-                </RelativeLayout>
-            </LinearLayout>
-
-            <!-- Challenge / Response -->
-            <LinearLayout
-                android:id="@+id/cr_group"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/challenge"
-                    android:textColor="#333333"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <EditText
-                    android:id="@+id/response"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:imeOptions="actionDone"
-                    android:paddingHorizontal="12dp" />
-            </LinearLayout>
-
-        </LinearLayout>
-
-        <!-- สถานะการเชื่อมต่อ & Progress -->
-        <ProgressBar
-            android:id="@+id/progress"
-            style="@android:style/Widget.ProgressBar.Horizontal"
-            android:layout_width="match_parent"
-            android:layout_height="8dp"
-            android:layout_marginVertical="8dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:orientation="horizontal"
-            android:padding="8dp">
-
-            <ImageView
-                android:id="@+id/status_icon"
-                android:layout_width="24dp"
-                android:layout_height="24dp" />
-
-            <TextView
-                android:id="@+id/status"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingLeft="8dp"
-                android:textColor="#333333"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-        <!-- ปุ่มควบคุมการเชื่อมต่อ -->
-        <LinearLayout
-            android:id="@+id/button_group"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginVertical="12dp"
-            android:gravity="center"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/connect"
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_marginRight="6dp"
-                android:layout_weight="1"
-                android:text="@string/connect"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/disconnect"
-                android:layout_width="0dp"
-                android:layout_height="50dp"
-                android:layout_marginLeft="6dp"
-                android:layout_weight="1"
-                android:text="@string/disconnect"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-        <!-- การ์ดแสดงสถิติการเชื่อมต่อ -->
-        <LinearLayout
-            android:id="@+id/conn_details_group"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <LinearLayout
-                android:id="@+id/conn_details_boxed"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                android:background="#FFFFFF"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <LinearLayout
-                    android:id="@+id/stats_group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:text="@string/stats_group_header"
-                        android:textColor="#1976D2"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <TableLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp">
-
-                        <TableRow android:paddingVertical="4dp">
-                            <TextView android:text="@string/duration" android:textColor="#666666" />
-                            <TextView android:id="@+id/duration" android:paddingLeft="16dp" android:textColor="#000000" android:textStyle="bold" />
-                        </TableRow>
-
-                        <TableRow android:paddingVertical="4dp">
-                            <TextView android:text="@string/last_pkt_recv" android:textColor="#666666" />
-                            <TextView android:id="@+id/last_pkt_recv" android:paddingLeft="16dp" android:textColor="#000000" android:textStyle="bold" />
-                        </TableRow>
-
-                        <TableRow android:paddingVertical="4dp">
-                            <TextView android:text="@string/bytes_in" android:textColor="#666666" />
-                            <TextView android:id="@+id/bytes_in" android:paddingLeft="16dp" android:textColor="#000000" android:textStyle="bold" />
-                        </TableRow>
-
-                        <TableRow android:paddingVertical="4dp">
-                            <TextView android:text="@string/bytes_out" android:textColor="#666666" />
-                            <TextView android:id="@+id/bytes_out" android:paddingLeft="16dp" android:textColor="#000000" android:textStyle="bold" />
-                        </TableRow>
-                    </TableLayout>
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/stats_expansion_group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <LinearLayout
-                        android:id="@+id/info_group"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:paddingTop="12dp"
-                            android:text="@string/info_group_header"
-                            android:textColor="#1976D2"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
-
-                        <TableLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp">
-
-                            <TableRow android:id="@+id/ipv4_addr_row" android:paddingVertical="4dp">
-                                <TextView android:text="@string/ipv4_addr" android:textColor="#666666" />
-                                <TextView android:id="@+id/ipv4_addr" android:paddingLeft="16dp" android:textColor="#000000" android:textStyle="bold" />
-                            </TableRow>
-
-                            <TableRow android:id="@+id/ipv6_addr_row" android:paddingVertical="4dp">
-                                <TextView android:text="@string/ipv6_addr" android:textColor="#666666" />
-                                <TextView android:id="@+id/ipv6_addr" android:paddingLeft="16dp" android:textColor="#000000" android:textStyle="bold" />
-                            </TableRow>
-
-                            <TableRow android:id="@+id/user_row" android:paddingVertical="4dp">
-                                <TextView android:text="@string/user" android:textColor="#666666" />
-                                <TextView android:id="@+id/user" android:paddingLeft="16dp" android:textColor="#000000" android:textStyle="bold" />
-                            </TableRow>
-
-                            <TableRow android:id="@+id/client_ip_row" android:paddingVertical="4dp">
-                                <TextView android:text="@string/client_ip" android:textColor="#666666" />
-                                <TextView android:id="@+id/client_ip" android:paddingLeft="16dp" android:textColor="#000000" android:textStyle="bold" />
-                            </TableRow>
-
-                            <TableRow android:id="@+id/server_host_row" android:paddingVertical="4dp">
-                                <TextView android:text="@string/server_host" android:textColor="#666666" />
-                                <TextView android:id="@+id/server_host" android:paddingLeft="16dp" android:textColor="#000000" android:textStyle="bold" />
-                            </TableRow>
-
-                            <TableRow android:id="@+id/server_ip_row" android:paddingVertical="4dp">
-                                <TextView android:text="@string/server_ip" android:textColor="#666666" />
-                                <TextView android:id="@+id/server_ip" android:paddingLeft="16dp" android:textColor="#000000" android:textStyle="bold" />
-                            </TableRow>
-
-                            <TableRow android:id="@+id/server_port_row" android:paddingVertical="4dp">
-                                <TextView android:text="@string/server_port" android:textColor="#666666" />
-                                <TextView android:id="@+id/server_port" android:paddingLeft="16dp" android:textColor="#000000" android:textStyle="bold" />
-                            </TableRow>
-
-                            <TableRow android:id="@+id/server_proto_row" android:paddingVertical="4dp">
-                                <TextView android:text="@string/server_proto" android:textColor="#666666" />
-                                <TextView android:id="@+id/server_proto" android:paddingLeft="16dp" android:textColor="#000000" android:textStyle="bold" />
-                            </TableRow>
-                        </TableLayout>
-                    </LinearLayout>
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/details_more_less"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:paddingTop="12dp"
-                    android:textColor="#2196F3"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- ส่วนของแถบโลโก้ด้านล่าง -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="8dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:src="@drawable/pt" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingLeft="12dp">
-
-                    <TextView
-                        android:text="@string/privatetunnel_ad"
-                        android:textColor="#333333"
-                        android:textSize="13sp" />
-
-                    <TextView
-                        android:autoLink="web"
-                        android:text="@string/privatetunnel_link"
-                        android:textColor="#1976D2"
-                        android:textSize="13sp" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="12dp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:src="@drawable/icon" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:paddingLeft="12dp">
-
-                    <TextView
-                        android:text="@string/openvpn_ad"
-                        android:textColor="#333333"
-                        android:textSize="13sp" />
-
-                    <TextView
-                        android:autoLink="web"
-                        android:text="@string/openvpn_link"
-                        android:textColor="#1976D2"
-                        android:textSize="13sp" />
-                </LinearLayout>
-            </LinearLayout>
-
-        </LinearLayout>
-
-    </LinearLayout>
+<ScrollView
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:id="@+id/main_scroll_view"
+	android:layout_width="fill_parent"
+	android:layout_height="wrap_content">
+
+	<LinearLayout
+		android:padding="3.0mm"
+		android:orientation="vertical"
+		android:layout_width="fill_parent"
+		android:layout_height="wrap_content">
+		
+		<LinearLayout
+			android:id="@+id/post_import_help_blurb"
+			android:paddingBottom="10.0dip"
+			android:visibility="gone"
+			style="@style/info_box">
+
+			<LinearLayout
+				android:background="@drawable/info_box"
+				style="@style/group_wrap">
+
+				<TextView
+					android:textStyle="bold"
+					android:text="@string/import_help_title"
+					style="@style/item"/>
+
+				<TextView
+					android:id="@+id/import_help_text"
+					android:text="@string/import_help_text"
+					style="@style/subtitle"/>
+
+			</LinearLayout>
+
+		</LinearLayout>
+
+		<RelativeLayout
+			android:orientation="horizontal"
+			android:id="@+id/profile_group"
+			style="@style/prop_layout">
+
+			<LinearLayout
+				style="@style/group">
+
+				<TextView
+					android:text="@string/profile_prompt"
+					style="@style/label"/>
+
+				<Spinner
+					android:id="@+id/profile"
+					android:focusable="false"
+					android:prompt="@string/profile_prompt"
+					style="@style/item_wrap"/>
+
+			</LinearLayout>
+
+			<ImageButton
+				android:id="@+id/profile_edit"
+				android:src="@drawable/edit"
+				style="@style/prop_image"/>
+
+		</RelativeLayout>
+
+		<RelativeLayout
+			android:orientation="horizontal"
+			android:id="@+id/proxy_group"
+			style="@style/prop_layout">
+
+			<LinearLayout
+				style="@style/group">
+
+				<TextView
+					android:text="@string/proxy_prompt"
+					style="@style/label"/>
+
+				<Spinner
+					android:id="@+id/proxy"
+					android:prompt="@string/proxy_prompt"
+					style="@style/item_wrap"/>
+
+			</LinearLayout>
+
+			<ImageButton
+				android:id="@+id/proxy_edit"
+				android:src="@drawable/edit"
+				style="@style/prop_image"/>
+
+		</RelativeLayout>
+
+		<LinearLayout
+			android:id="@+id/server_group"
+			style="@style/group">
+
+			<TextView
+				android:text="@string/server_prompt"
+				style="@style/label"/>
+
+			<Spinner
+				android:id="@+id/server"
+				android:prompt="@string/server_prompt"
+				style="@style/item_wrap"/>
+
+		</LinearLayout>
+
+		<LinearLayout
+			android:id="@+id/username_group"
+			style="@style/group">
+
+			<TextView
+				android:text="@string/username"
+				style="@style/label"/>
+
+			<EditText
+				android:id="@+id/username"
+				android:nextFocusDown="@+id/pk_password"
+				android:imeOptions="actionNext"
+				style="@style/edit"/>
+
+		</LinearLayout>
+
+		<LinearLayout
+			android:id="@+id/pk_password_group"
+			style="@style/group">
+
+			<TextView
+				android:text="@string/pk_password"
+				style="@style/label"/>
+
+			<RelativeLayout
+				style="@style/group_horizontal">
+
+				<EditText
+					android:id="@+id/pk_password"
+					android:nextFocusDown="@+id/password"
+					android:password="true"
+					android:layout_toLeftOf="@+id/pk_password_save"
+					android:layout_alignParentLeft="true"
+					android:imeOptions="actionNext"
+					style="@style/edit"/>
+
+				<CheckBox
+					android:id="@+id/pk_password_save"
+					android:text="@string/pk_password_save_prompt"
+					android:layout_alignParentRight="true"
+					style="@style/item_wrap"/>
+
+			</RelativeLayout>
+
+		</LinearLayout>
+
+		<LinearLayout
+			android:id="@+id/password_group"
+			style="@style/group">
+
+			<TextView
+				android:text="@string/password"
+				style="@style/label"/>
+
+			<RelativeLayout
+				style="@style/group_horizontal">
+
+				<EditText
+					android:id="@+id/password"
+					android:nextFocusDown="@+id/response"
+					android:password="true"
+					android:layout_toLeftOf="@+id/password_save"
+					android:layout_alignParentLeft="true"
+					android:imeOptions="actionNext"
+					style="@style/edit"/>
+
+				<CheckBox
+					android:id="@+id/password_save"
+					android:text="@string/password_save_prompt"
+					android:layout_alignParentRight="true"
+					style="@style/item_wrap"/>
+
+			</RelativeLayout>
+
+		</LinearLayout>
+
+		<LinearLayout
+			android:id="@+id/cr_group"
+			style="@style/group">
+
+			<TextView
+				android:id="@+id/challenge"
+				style="@style/label"/>
+
+			<EditText
+				android:id="@+id/response"
+				android:imeOptions="actionNext"
+				style="@style/edit"/>
+
+		</LinearLayout>
+
+		<ProgressBar
+			android:id="@+id/progress"
+			android:paddingBottom="8.0sp"
+			android:layout_width="fill_parent"
+			android:layout_height="wrap_content"
+			style="@android:style/Widget.ProgressBar.Horizontal"/>
+
+		<LinearLayout
+			android:gravity="center_vertical"
+			android:paddingTop="8.0sp"
+			style="@style/group_horizontal">
+
+			<ImageView
+				android:id="@+id/status_icon"
+				style="@style/image"/>
+
+			<TextView
+				android:id="@+id/status"
+				android:paddingLeft="8.0sp"
+				style="@style/item"/>
+
+		</LinearLayout>
+
+		<LinearLayout
+			android:id="@+id/button_group"
+			style="@style/group">
+
+			<Button
+				android:id="@+id/connect"
+				android:text="@string/connect"
+				style="@style/button"/>
+
+			<Button
+				android:id="@+id/disconnect"
+				android:text="@string/disconnect"
+				style="@style/button"/>
+
+		</LinearLayout>
+
+		<LinearLayout
+			android:id="@+id/conn_details_group"
+			android:paddingTop="8.0sp"
+			style="@style/stats_group">
+
+			<LinearLayout
+				android:id="@+id/conn_details_boxed"
+				style="@style/stats_boxed">
+
+				<LinearLayout
+					android:id="@+id/stats_group"
+					style="@style/stats_section">
+
+					<TextView
+						android:text="@string/stats_group_header"
+						style="@style/stats_header"/>
+
+					<TableLayout
+						style="@style/stats_table">
+
+						<TableRow
+							style="@style/stats_row">
+
+							<TextView
+								android:text="@string/duration"
+								style="@style/stats_key"/>
+
+							<TextView
+								android:id="@+id/duration"
+								style="@style/stats_value"/>
+
+						</TableRow>
+
+						<TableRow
+							style="@style/stats_row">
+
+							<TextView
+								android:text="@string/last_pkt_recv"
+								style="@style/stats_key"/>
+
+							<TextView
+								android:id="@+id/last_pkt_recv"
+								style="@style/stats_value"/>
+
+						</TableRow>
+
+						<TableRow
+							style="@style/stats_row">
+
+							<TextView
+								android:text="@string/bytes_in"
+								style="@style/stats_key"/>
+
+							<TextView
+								android:id="@+id/bytes_in"
+								style="@style/stats_value"/>
+
+						</TableRow>
+
+						<TableRow
+							style="@style/stats_row">
+
+							<TextView
+								android:text="@string/bytes_out"
+								style="@style/stats_key"/>
+
+							<TextView
+								android:id="@+id/bytes_out"
+								style="@style/stats_value"/>
+
+						</TableRow>
+
+					</TableLayout>
+
+				</LinearLayout>
+
+				<LinearLayout
+					android:id="@+id/stats_expansion_group"
+					style="@style/stats_group">
+
+					<LinearLayout
+						android:id="@+id/info_group"
+						style="@style/stats_section">
+
+						<TextView
+							android:paddingTop="12.0sp"
+							android:text="@string/info_group_header"
+							style="@style/stats_header"/>
+
+						<TableLayout
+							style="@style/stats_table">
+
+							<TableRow
+								android:id="@+id/ipv4_addr_row"
+								style="@style/stats_row">
+
+								<TextView
+									android:text="@string/ipv4_addr"
+									style="@style/stats_key"/>
+
+								<TextView
+									android:id="@+id/ipv4_addr"
+									style="@style/stats_value"/>
+
+							</TableRow>
+
+							<TableRow
+								android:id="@+id/ipv6_addr_row"
+								style="@style/stats_row">
+
+								<TextView
+									android:text="@string/ipv6_addr"
+									style="@style/stats_key"/>
+
+								<TextView
+									android:id="@+id/ipv6_addr"
+									style="@style/stats_value"/>
+
+							</TableRow>
+
+							<TableRow
+								android:id="@+id/user_row"
+								style="@style/stats_row">
+
+								<TextView
+									android:text="@string/user"
+									style="@style/stats_key"/>
+
+								<TextView
+									android:id="@+id/user"
+									style="@style/stats_value"/>
+
+							</TableRow>
+
+							<TableRow
+								android:id="@+id/client_ip_row"
+								style="@style/stats_row">
+
+								<TextView
+									android:text="@string/client_ip"
+									style="@style/stats_key"/>
+
+								<TextView
+									android:id="@+id/client_ip"
+									style="@style/stats_value"/>
+
+							</TableRow>
+
+							<TableRow
+								android:id="@+id/server_host_row"
+								style="@style/stats_row">
+
+								<TextView
+									android:text="@string/server_host"
+									style="@style/stats_key"/>
+
+								<TextView
+									android:id="@+id/server_host"
+									style="@style/stats_value"/>
+
+							</TableRow>
+
+							<TableRow
+								android:id="@+id/server_ip_row"
+								style="@style/stats_row">
+
+								<TextView
+									android:text="@string/server_ip"
+									style="@style/stats_key"/>
+
+								<TextView
+									android:id="@+id/server_ip"
+									style="@style/stats_value"/>
+
+							</TableRow>
+
+							<TableRow
+								android:id="@+id/server_port_row"
+								style="@style/stats_row">
+
+								<TextView
+									android:text="@string/server_port"
+									style="@style/stats_key"/>
+
+								<TextView
+									android:id="@+id/server_port"
+									style="@style/stats_value"/>
+
+							</TableRow>
+
+							<TableRow
+								android:id="@+id/server_proto_row"
+								style="@style/stats_row">
+
+								<TextView
+									android:text="@string/server_proto"
+									style="@style/stats_key"/>
+
+								<TextView
+									android:id="@+id/server_proto"
+									style="@style/stats_value"/>
+
+							</TableRow>
+
+						</TableLayout>
+
+					</LinearLayout>
+
+				</LinearLayout>
+
+				<TextView
+					android:textAppearance="?android:textAppearanceSmall"
+					android:textColor="#ff8080ff"
+					android:layout_gravity="center_horizontal"
+					android:id="@+id/details_more_less"
+					android:paddingTop="8.0sp"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"/>
+
+			</LinearLayout>
+
+		</LinearLayout>
+
+		<LinearLayout
+			android:padding="5.0dip"
+			style="@style/group">
+
+			<View
+				style="@style/spacer16"/>
+
+			<LinearLayout
+				android:orientation="horizontal"
+				style="@style/ad_layout">
+
+				<ImageView
+					android:src="@drawable/pt"
+					style="@style/ad_image"/>
+
+				<LinearLayout
+					android:orientation="vertical"
+					style="@style/ad_layout">
+
+					<TextView
+						android:text="@string/privatetunnel_ad"
+						style="@style/item"/>
+
+					<TextView
+						android:autoLink="web"
+						android:text="@string/privatetunnel_link"
+						style="@style/item"/>
+
+				</LinearLayout>
+
+			</LinearLayout>
+
+			<View
+				style="@style/spacer16"/>
+
+			<LinearLayout
+				android:orientation="horizontal"
+				style="@style/ad_layout">
+
+				<ImageView
+					android:src="@drawable/icon"
+					style="@style/ad_image"/>
+
+				<LinearLayout
+					android:orientation="vertical"
+					style="@style/ad_layout">
+
+					<TextView
+						android:text="@string/openvpn_ad"
+						style="@style/item"/>
+
+					<TextView
+						android:autoLink="web"
+						android:text="@string/openvpn_link"
+						style="@style/item"/>
+
+				</LinearLayout>
+
+			</LinearLayout>
+
+		</LinearLayout>
+
+		<View
+			style="@style/spacer16"/>
+
+	</LinearLayout>
 
 </ScrollView>
