@@ -480,7 +480,6 @@ private void onZipDownloaded(File zipFile) {
         return;
     }
 
-    // ลบไฟล์ .ovpn / คอนฟิกเก่าออกก่อนแตกไฟล์ใหม่ (ป้องกัน Spinner แสดงโปรไฟล์ซ้ำ)
     cleanOldFiles();
 
     try {
@@ -493,12 +492,42 @@ private void onZipDownloaded(File zipFile) {
             zipFile.delete();
         }
 
+        // เปลี่ยนชื่อไฟล์ .ovpn ให้เป็น URL-encoded ตามที่แอปต้องการ
+        renameOvpnFilesToEncoded();
+
         showSuccessAndRestartDialog();
     } catch (Exception e) {
         showToast("เกิดข้อผิดพลาด: " + e.getMessage());
     }
 }
 
+private void renameOvpnFilesToEncoded() {
+    File dir = activity.getFilesDir();
+    File[] files = dir.listFiles();
+    if (files == null) return;
+
+    for (File file : files) {
+        String name = file.getName();
+        if (!name.toLowerCase().endsWith(".ovpn")) continue;
+
+        // ตัด .ovpn ออก
+        String baseName = name.substring(0, name.length() - 5);
+
+        // ถ้าชื่อมีช่องว่างหรือตัวอักษรพิเศษ ให้ encode
+        try {
+            String encoded = java.net.URLEncoder.encode(baseName, "UTF-8") + ".ovpn";
+            // URLEncoder ใช้ + แทนช่องว่าง ซึ่งตรงกับที่แอปใช้
+            if (!encoded.equals(name)) {
+                File newFile = new File(dir, encoded);
+                if (!newFile.exists()) {
+                    file.renameTo(newFile);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Rename ovpn failed: " + name, e);
+        }
+    }
+}
 
         private void cleanOldFiles() {
             File dir = activity.getFilesDir();
