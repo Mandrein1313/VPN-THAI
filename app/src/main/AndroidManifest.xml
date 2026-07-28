@@ -38,9 +38,11 @@
                 android:value="vpn" />
         </service>
 
+        <!-- กำหนด theme ให้หน้าหลักใช้ NoActionBar เพื่อปิดแถบสีเทาตัวบน แล้วใช้แถบของแอปพร้อมปุ่ม 3 จุด -->
         <activity
             android:name="net.openvpn.openvpn.OpenVPNClient"
             android:exported="true"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
             android:configChanges="keyboardHidden|orientation"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustPan">
