@@ -2,12 +2,13 @@
 <resources>
 	<style 
 		name="AppTheme" 
-		parent="Theme.AppCompat.Light">
+		parent="Theme.AppCompat.Light.NoActionBar">
 		<item name="android:windowBackground">@color/colorPrimary</item>
 		<item name="colorPrimary">@color/colorPrimary</item>
 		<item name="colorPrimaryDark">@color/colorPrimaryDark</item>
 		<item name="colorAccent">@color/colorAccent</item>
 	</style>
+
 <style name="TextAppearance.Compat.Notification" parent="@android:style/TextAppearance.StatusBar.EventContent" />
 <style name="TextAppearance.Compat.Notification.Info" parent="@style/TextAppearance.Compat.Notification"><item name="android:textSize">12.0sp</item><item name="android:textColor">?android:textColorSecondary</item></style>
 <style name="TextAppearance.Compat.Notification.Time" parent="@style/TextAppearance.Compat.Notification"><item name="android:textSize">12.0sp</item><item name="android:textColor">?android:textColorSecondary</item></style>
