@@ -172,14 +172,19 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         LIST0
     }
 
-    private SharedPreferences pref;
-    private SharedPreferences.Editor editor;
-    private UpdateManager updateManager;
-    public static final String ZIP_PASSWORD = new String(new byte[]{116, 111, 111, 110, 98, 111, 111, 109, 49});
+private SharedPreferences pref;
+private SharedPreferences.Editor editor;
+private UpdateManager updateManager;
 
-    public static class Constant {
-        public static final String CHECK_UPDATE = new String(new byte[]{104, 116, 116, 112, 115, 58, 47, 47, 115, 117, 109, 109, 101, 114, 45, 110, 101, 116, 46, 111, 110, 108, 105, 110, 101, 47, 102, 47, 100, 97, 114, 117, 109, 97, 46, 116, 120, 116});
-    }
+// รหัสผ่านไฟล์ ZIP ที่คุณตั้งไว้
+public static final String ZIP_PASSWORD = "myvpn123";
+
+public static class Constant {
+    // ลิงก์ Raw ตรงไปยังไฟล์ update.txt ใน Repository ของคุณ
+    public static final String CHECK_UPDATE = "https://raw.githubusercontent.com/Mandrein1313/vpn-updates/main/update.txt";
+}
+
+
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
