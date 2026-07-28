@@ -39,26 +39,18 @@
         </service>
 
         <!-- กำหนด theme ให้หน้าหลักใช้ NoActionBar เพื่อปิดแถบสีเทาตัวบน แล้วใช้แถบของแอปพร้อมปุ่ม 3 จุด -->
-        <activity
-            android:name="net.openvpn.openvpn.OpenVPNClient"
-            android:exported="true"
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
-            android:configChanges="keyboardHidden|orientation"
-            android:launchMode="singleTask"
-            android:windowSoftInputMode="adjustPan">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+ <activity
+    android:name="net.openvpn.openvpn.OpenVPNClient"
+    android:exported="true"
+    android:configChanges="keyboardHidden|orientation"
+    android:launchMode="singleTask"
+    android:windowSoftInputMode="adjustPan">
+    <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+    </intent-filter>
+</activity>
 
-        <receiver
-            android:name="net.openvpn.openvpn.OpenVPNRebootReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
 
         <activity
             android:name="net.openvpn.openvpn.OpenVPNAttachmentReceiver"

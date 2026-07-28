@@ -1,34 +1,23 @@
 package net.openvpn.openvpn;
 
 import android.app.Activity;
+import android.app.AlarmManager;
 import android.app.AlertDialog;
 import android.app.AlertDialog.Builder;
 import android.app.PendingIntent;
 import android.app.ProgressDialog;
-import android.app.AlarmManager;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Typeface;
-import android.media.Ringtone;
-import android.media.RingtoneManager;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.net.Uri;
 import android.net.VpnService;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.Vibrator;
 import android.preference.PreferenceManager;
-import androidx.annotation.NonNull;
-import androidx.core.app.ActivityCompat;
-import androidx.core.app.ActivityCompat.OnRequestPermissionsResultCallback;
-import androidx.core.content.ContextCompat;
-import androidx.appcompat.widget.Toolbar;
 import android.text.method.PasswordTransformationMethod;
 import android.text.method.SingleLineTransformationMethod;
 import android.util.Log;
@@ -61,6 +50,11 @@ import android.widget.TextView;
 import android.widget.TextView.OnEditorActionListener;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.app.ActivityCompat.OnRequestPermissionsResultCallback;
+import androidx.core.content.ContextCompat;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -69,9 +63,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
-import java.lang.reflect.Field;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -95,6 +89,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
     private static final int UIF_REFLECTED = 131072;
     private static final int UIF_RESET = 65536;
     private static final boolean UI_OVERLOADED = false;
+
     private String autostart_profile_name;
     private View button_group;
     private TextView bytes_in_view;
@@ -134,26 +129,30 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
     private int startup_state = 0;
     private View stats_expansion_group;
     private View stats_group;
-    private Handler stats_timer_handler = new Handler(Looper.getMainLooper());
-    private Runnable stats_timer_task = new Runnable() {
+    
+    private final Handler stats_timer_handler = new Handler(Looper.getMainLooper());
+    private final Runnable stats_timer_task = new Runnable() {
         public void run() {
             OpenVPNClient.this.show_stats();
             OpenVPNClient.this.schedule_stats();
         }
     };
+    
     private ImageView status_icon_view;
     private TextView status_view;
     private boolean stop_service_on_client_exit = RETAIN_AUTH;
     private View[] textgroups;
     private TextView[] textviews;
-    private Handler ui_reset_timer_handler = new Handler(Looper.getMainLooper());
-    private Runnable ui_reset_timer_task = new Runnable() {
+    
+    private final Handler ui_reset_timer_handler = new Handler(Looper.getMainLooper());
+    private final Runnable ui_reset_timer_task = new Runnable() {
         public void run() {
             if (!OpenVPNClient.this.is_active()) {
                 OpenVPNClient.this.ui_setup(OpenVPNClient.RETAIN_AUTH, OpenVPNClient.UIF_RESET, null);
             }
         }
     };
+    
     private EditText username_edit;
     private View username_group;
 
@@ -178,6 +177,10 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
     private UpdateManager updateManager;
     public static final String ZIP_PASSWORD = new String(new byte[]{116, 111, 111, 110, 98, 111, 111, 109, 49});
 
+    public static class Constant {
+        public static final String CHECK_UPDATE = new String(new byte[]{104, 116, 116, 112, 115, 58, 47, 47, 115, 117, 109, 109, 101, 114, 45, 110, 101, 116, 46, 111, 110, 108, 105, 110, 101, 47, 102, 47, 100, 97, 114, 117, 109, 97, 46, 116, 120, 116});
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -201,14 +204,11 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
 
         // ตัวจัดการระบบอัปเดตเวอร์ชันใหม่
         updateManager = new UpdateManager(this);
+        updateManager.checkUpdateAuto(); // สั่งตรวจเช็กอัปเดตอัตโนมัติขณะเริ่มแอป
 
         doBindService();
         warn_app_expiration(this.prefs);
         new AppRate(this).setMinDaysUntilPrompt(14).setMinLaunchesUntilPrompt(10).init();
-    }
-
-    public static class Constant {
-        public static final String CHECK_UPDATE = new String(new byte[]{104, 116, 116, 112, 115, 58, 47, 47, 115, 117, 109, 109, 101, 114, 45, 110, 101, 116, 46, 111, 110, 108, 105, 110, 101, 47, 102, 47, 100, 97, 114, 117, 109, 97, 46, 116, 120, 116});
     }
 
     // ==========================================
@@ -269,7 +269,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                     conn.connect();
 
                     StringBuilder builder = new StringBuilder();
-                    try (Reader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                    try (Reader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
                         char[] buffer = new char[1024];
                         int read;
                         while ((read = reader.read(buffer, 0, buffer.length)) > 0) {
@@ -278,7 +278,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                     }
                     result = new JSONObject(builder.toString());
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    Log.e(TAG, "Check update failed", e);
                 } finally {
                     if (conn != null) conn.disconnect();
                 }
@@ -289,8 +289,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         }
 
         private void onCheckUpdateFinished(JSONObject result) {
-            if (result == null) return;
-            if (activity.isFinishing() || activity.isDestroyed()) return;
+            if (result == null || activity.isFinishing() || activity.isDestroyed()) return;
 
             try {
                 File versionFile = new File(activity.getFilesDir(), "Version.txt");
@@ -301,9 +300,9 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                     currentVersion = localJson.optString("Version", "0.0");
                 }
 
-                String serverVersion = result.getString("Version");
-                String downloadUrl = result.getString("Url");
-                String changelog = result.getString("Changelog");
+                String serverVersion = result.optString("Version", "0.0");
+                String downloadUrl = result.optString("Url", "");
+                String changelog = result.optString("Changelog", "");
 
                 if (isNewVersionAvailable(serverVersion, currentVersion)) {
                     showUpdateDialog(serverVersion, downloadUrl, changelog);
@@ -315,12 +314,14 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                     }
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e(TAG, "Error handling update response", e);
             }
         }
 
         private void showAlreadyLatestToast() {
-            Toast.makeText(activity, "เซิร์ฟเวอร์เป็นเวอร์ชั่นล่าสุดแล้ว", Toast.LENGTH_LONG).show();
+            if (!activity.isFinishing() && !activity.isDestroyed()) {
+                Toast.makeText(activity, "เซิร์ฟเวอร์เป็นเวอร์ชั่นล่าสุดแล้ว", Toast.LENGTH_LONG).show();
+            }
         }
 
         private void showUpdateDialog(String version, final String downloadUrl, String changelog) {
@@ -346,7 +347,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                 saveStringToFile(file, json.toString());
                 upEditor.putBoolean("isFirstRun", true).apply();
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e(TAG, "Failed to save version on cancel", e);
             }
         }
 
@@ -359,7 +360,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                 saveStringToFile(file, json.toString());
                 upEditor.putBoolean("isFirstRun", true).apply();
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e(TAG, "Failed to init default version file", e);
             }
         }
 
@@ -369,38 +370,48 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             int length = Math.max(newParts.length, currentParts.length);
 
             for (int i = 0; i < length; i++) {
-                int v1 = i < newParts.length ? Integer.parseInt(newParts[i]) : 0;
-                int v2 = i < currentParts.length ? Integer.parseInt(currentParts[i]) : 0;
+                int v1 = i < newParts.length ? parseVersionPart(newParts[i]) : 0;
+                int v2 = i < currentParts.length ? parseVersionPart(currentParts[i]) : 0;
                 if (v1 < v2) return false;
                 if (v1 > v2) return true;
             }
             return false;
         }
 
+        private int parseVersionPart(String part) {
+            try {
+                return Integer.parseInt(part.replaceAll("[^0-9]", ""));
+            } catch (Exception e) {
+                return 0;
+            }
+        }
+
         public String readFileToString(File file) {
             StringBuilder builder = new StringBuilder();
             try (InputStream in = new FileInputStream(file);
-                 Reader reader = new BufferedReader(new InputStreamReader(in))) {
+                 Reader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
                 char[] buffer = new char[1024];
                 int read;
                 while ((read = reader.read(buffer, 0, buffer.length)) > 0) {
                     builder.append(buffer, 0, read);
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e(TAG, "Error reading file", e);
             }
             return builder.toString();
         }
 
         private void saveStringToFile(File file, String content) throws Exception {
             try (OutputStream out = new FileOutputStream(file)) {
-                out.write(content.getBytes());
+                out.write(content.getBytes(StandardCharsets.UTF_8));
                 out.flush();
             }
         }
 
         private void showToast(String message) {
-            Toast.makeText(activity, message, Toast.LENGTH_SHORT).show();
+            if (!activity.isFinishing() && !activity.isDestroyed()) {
+                Toast.makeText(activity, message, Toast.LENGTH_SHORT).show();
+            }
         }
 
         private class ConfigDownloadListener implements DownloadListener {
@@ -415,7 +426,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             progressDialog.setTitle("กำลังอัพเดทเซิร์ฟเวอร์");
             progressDialog.setMessage("กรุณารอสักครู่...");
             progressDialog.setCancelable(false);
-            if (!activity.isFinishing()) progressDialog.show();
+            if (!activity.isFinishing() && !activity.isDestroyed()) progressDialog.show();
 
             executor.execute(() -> {
                 File zipFile = null;
@@ -424,6 +435,8 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                     URL url = new URL(downloadUrl);
                     conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("GET");
+                    conn.setConnectTimeout(10000);
+                    conn.setReadTimeout(10000);
                     conn.connect();
 
                     zipFile = new File(activity.getFilesDir(), "Configs.zip");
@@ -437,7 +450,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                         out.flush();
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    Log.e(TAG, "Download zip failed", e);
                     zipFile = null;
                 } finally {
                     if (conn != null) conn.disconnect();
@@ -445,7 +458,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
 
                 final File finalZipFile = zipFile;
                 mainHandler.post(() -> {
-                    if (progressDialog.isShowing()) {
+                    if (progressDialog.isShowing() && !activity.isFinishing() && !activity.isDestroyed()) {
                         progressDialog.dismiss();
                     }
                     onZipDownloaded(finalZipFile);
@@ -467,7 +480,9 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                     zip.setPassword(OpenVPNClient.ZIP_PASSWORD);
                 }
                 zip.extractAll(activity.getFilesDir().getAbsolutePath());
-                zipFile.delete();
+                if (zipFile.exists()) {
+                    zipFile.delete();
+                }
 
                 showSuccessAndRestartDialog();
             } catch (Exception e) {
@@ -516,6 +531,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             if (alarmManager != null) {
                 alarmManager.set(AlarmManager.RTC, System.currentTimeMillis() + 200, pendingIntent);
             }
+            executor.shutdown();
             System.exit(0);
         }
     }
@@ -562,7 +578,6 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
     protected void ok_dialog(String title, String message) {
         ok_dialog(title, message, null);
     }
-
 
     @Override
     protected void onNewIntent(Intent intent) {
@@ -1000,7 +1015,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                     this.post_import_help_blurb.setVisibility(View.GONE);
                 }
                 ProxyList proxy_list = get_proxy_list();
-                if (active || proxy_list.size() <= 0) {
+                if (active || proxy_list == null || proxy_list.size() <= 0) {
                     this.proxy_group.setVisibility(View.GONE);
                 } else {
                     SpinUtil.show_spinner(this, this.proxy_spin, proxy_list.get_name_list(true));
@@ -1031,7 +1046,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                     boolean autologin = prof.get_autologin();
                     boolean pk_pwd_req = prof.get_private_key_password_required();
                     boolean dynamic_challenge = prof.is_dynamic_challenge();
-                    if ((!autologin || (autologin && udef)) && !dynamic_challenge) {
+                    if ((!autologin || udef) && !dynamic_challenge) {
                         if (udef) {
                             this.username_edit.setText(prof.get_userlocked_username());
                             set_enabled(this.username_edit, RETAIN_AUTH);
@@ -1162,7 +1177,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                 raise_file_selection_dialog(REQUEST_IMPORT_PKCS12, R.string.select_pkcs12);
                 return;
             default:
-                return;
+                break;
         }
     }
 
@@ -1180,7 +1195,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                     }
                     return;
                 default:
-                    return;
+                    break;
             }
         }
     }

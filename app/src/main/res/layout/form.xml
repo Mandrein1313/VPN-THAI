@@ -401,10 +401,6 @@
 
 								<TextView
 									android:text="@string/server_ip"
-									style="@style/stats_key"/>
-
-								<TextView
-									android:id="@+id/server_ip"
 									style="@style/stats_value"/>
 
 							</TableRow>
