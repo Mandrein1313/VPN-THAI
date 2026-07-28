@@ -24,6 +24,7 @@ import android.util.Log;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
@@ -172,22 +173,19 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         LIST0
     }
 
-private SharedPreferences pref;
-private SharedPreferences.Editor editor;
-private UpdateManager updateManager;
+    private SharedPreferences pref;
+    private SharedPreferences.Editor editor;
+    private UpdateManager updateManager;
 
-// รหัสผ่านไฟล์ ZIP ที่คุณตั้งไว้
-public static final String ZIP_PASSWORD = "myvpn123";
+    // รหัสผ่านไฟล์ ZIP ที่คุณตั้งไว้
+    public static final String ZIP_PASSWORD = "myvpn123";
 
-public static class Constant {
-    // ลิงก์ Raw ตรงไปยังไฟล์ update.txt โดยต่อเวลาปัจจุบันกันแคช
-    public static String getCheckUpdateUrl() {
-        return "https://raw.githubusercontent.com/Mandrein1313/vpn-updates/main/update.txt?t=" + System.currentTimeMillis();
+    public static class Constant {
+        // ลิงก์ Raw ตรงไปยังไฟล์ update.txt โดยต่อเวลาปัจจุบันกันแคช
+        public static String getCheckUpdateUrl() {
+            return "https://raw.githubusercontent.com/Mandrein1313/vpn-updates/main/update.txt?t=" + System.currentTimeMillis();
+        }
     }
-}
-
-
-
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -313,7 +311,7 @@ public static class Constant {
                 String changelog = result.optString("Changelog", "");
 
                 if (isNewVersionAvailable(serverVersion, currentVersion)) {
-                    showUpdateDialog(serverVersion, downloadUrl, changelog);
+                    showUpdateDialog(activity, serverVersion, changelog, downloadUrl);
                     File file = new File(activity.getFilesDir(), "Version.txt");
                     saveStringToFile(file, result.toString());
                 } else {
@@ -332,38 +330,38 @@ public static class Constant {
             }
         }
 
-private void showUpdateDialog(Context context, String version, String changelog, String downloadUrl) {
-    // 1. สร้าง Dialog และใช้ LayoutInflater ดึง UI ที่เราออกแบบ
-    AlertDialog.Builder builder = new AlertDialog.Builder(context);
-    View view = LayoutInflater.from(context).inflate(R.layout.dialog_update, null);
-    builder.setView(view);
+        private void showUpdateDialog(Context context, String version, String changelog, String downloadUrl) {
+            // 1. สร้าง Dialog และใช้ LayoutInflater ดึง UI ที่เราออกแบบ
+            AlertDialog.Builder builder = new AlertDialog.Builder(context);
+            View view = LayoutInflater.from(context).inflate(R.layout.dialog_update, null);
+            builder.setView(view);
 
-    AlertDialog dialog = builder.create();
+            AlertDialog dialog = builder.create();
 
-    // 2. ผูกองค์ประกอบต่างๆ เข้ากับ View
-    TextView tvTitle = view.findViewById(R.id.tv_title);
-    TextView tvVersion = view.findViewById(R.id.tv_version);
-    TextView tvChangelog = view.findViewById(R.id.tv_changelog);
-    Button btnCancel = view.findViewById(R.id.btn_cancel);
-    Button btnUpdate = view.findViewById(R.id.btn_update);
+            // 2. ผูกองค์ประกอบต่างๆ เข้ากับ View
+            TextView tvTitle = view.findViewById(R.id.tv_title);
+            TextView tvVersion = view.findViewById(R.id.tv_version);
+            TextView tvChangelog = view.findViewById(R.id.tv_changelog);
+            Button btnCancel = view.findViewById(R.id.btn_cancel);
+            Button btnUpdate = view.findViewById(R.id.btn_update);
 
-    // 3. กำหนดข้อความ
-    tvVersion.setText("เวอร์ชัน " + version);
-    tvChangelog.setText(changelog);
+            // 3. กำหนดข้อความ
+            if (tvVersion != null) tvVersion.setText("เวอร์ชัน " + version);
+            if (tvChangelog != null) tvChangelog.setText(changelog);
 
-    // 4. จัดการเหตุการณ์เมื่อกดปุ่ม
-    btnCancel.setOnClickListener(v -> dialog.dismiss());
+            // 4. จัดการเหตุการณ์เมื่อกดปุ่ม
+            if (btnCancel != null) btnCancel.setOnClickListener(v -> dialog.dismiss());
 
-    btnUpdate.setOnClickListener(v -> {
-        dialog.dismiss();
-        // เรียก Method ดาวน์โหลด ZIP ของคุณต่อได้เลย
-        startDownloadZip(downloadUrl); 
-    });
+            if (btnUpdate != null) {
+                btnUpdate.setOnClickListener(v -> {
+                    dialog.dismiss();
+                    startDownloadZip(downloadUrl); 
+                });
+            }
 
-    // 5. แสดง Dialog
-    dialog.show();
-}
-
+            // 5. แสดง Dialog
+            dialog.show();
+        }
 
         private void saveVersionOnCancel(String version) {
             try {
@@ -470,7 +468,7 @@ private void showUpdateDialog(Context context, String version, String changelog,
                     zipFile = new File(activity.getFilesDir(), "Configs.zip");
                     try (InputStream in = conn.getInputStream();
                          OutputStream out = new FileOutputStream(zipFile)) {
-                        byte[] buffer = new byte[1024];
+                        byte[] buffer = new byte[8192];
                         int read;
                         while ((read = in.read(buffer, 0, buffer.length)) > 0) {
                             out.write(buffer, 0, read);
@@ -494,31 +492,29 @@ private void showUpdateDialog(Context context, String version, String changelog,
             });
         }
 
-private void onZipDownloaded(File zipFile) {
-    if (zipFile == null || !zipFile.exists()) {
-        showToast("ดาวน์โหลดไฟล์ล้มเหลว");
-        return;
-    }
+        private void onZipDownloaded(File zipFile) {
+            if (zipFile == null || !zipFile.exists()) {
+                showToast("ดาวน์โหลดไฟล์ล้มเหลว");
+                return;
+            }
 
-    // ลบไฟล์ .ovpn / คอนฟิกเก่าออกก่อนแตกไฟล์ใหม่ (ป้องกัน Spinner แสดงโปรไฟล์ซ้ำ)
-    cleanOldFiles();
+            cleanOldFiles();
 
-    try {
-        ZipFile zip = new ZipFile(zipFile);
-        if (zip.isEncrypted()) {
-            zip.setPassword(OpenVPNClient.ZIP_PASSWORD);
+            try {
+                ZipFile zip = new ZipFile(zipFile);
+                if (zip.isEncrypted()) {
+                    zip.setPassword(OpenVPNClient.ZIP_PASSWORD);
+                }
+                zip.extractAll(activity.getFilesDir().getAbsolutePath());
+                if (zipFile.exists()) {
+                    zipFile.delete();
+                }
+
+                showSuccessAndRestartDialog();
+            } catch (Exception e) {
+                showToast("เกิดข้อผิดพลาด: " + e.getMessage());
+            }
         }
-        zip.extractAll(activity.getFilesDir().getAbsolutePath());
-        if (zipFile.exists()) {
-            zipFile.delete();
-        }
-
-        showSuccessAndRestartDialog();
-    } catch (Exception e) {
-        showToast("เกิดข้อผิดพลาด: " + e.getMessage());
-    }
-}
-
 
         private void cleanOldFiles() {
             File dir = activity.getFilesDir();
