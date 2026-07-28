@@ -180,9 +180,12 @@ private UpdateManager updateManager;
 public static final String ZIP_PASSWORD = "myvpn123";
 
 public static class Constant {
-    // ลิงก์ Raw ตรงไปยังไฟล์ update.txt ใน Repository ของคุณ
-    public static final String CHECK_UPDATE = "https://raw.githubusercontent.com/Mandrein1313/vpn-updates/main/update.txt";
+    // ลิงก์ Raw ตรงไปยังไฟล์ update.txt โดยต่อเวลาปัจจุบันกันแคช
+    public static String getCheckUpdateUrl() {
+        return "https://raw.githubusercontent.com/Mandrein1313/vpn-updates/main/update.txt?t=" + System.currentTimeMillis();
+    }
 }
+
 
 
 
@@ -267,7 +270,7 @@ public static class Constant {
                 JSONObject result = null;
                 HttpURLConnection conn = null;
                 try {
-                    URL url = new URL(Constant.CHECK_UPDATE);
+                    URL url = new URL(Constant.getCheckUpdateUrl());
                     conn = (HttpURLConnection) url.openConnection();
                     conn.setConnectTimeout(5000);
                     conn.setReadTimeout(5000);
@@ -471,29 +474,31 @@ public static class Constant {
             });
         }
 
-        private void onZipDownloaded(File zipFile) {
-            if (zipFile == null || !zipFile.exists()) {
-                showToast("ดาวน์โหลดไฟล์ล้มเหลว");
-                return;
-            }
+private void onZipDownloaded(File zipFile) {
+    if (zipFile == null || !zipFile.exists()) {
+        showToast("ดาวน์โหลดไฟล์ล้มเหลว");
+        return;
+    }
 
-            cleanOldFiles();
+    // ลบไฟล์ .ovpn / คอนฟิกเก่าออกก่อนแตกไฟล์ใหม่ (ป้องกัน Spinner แสดงโปรไฟล์ซ้ำ)
+    cleanOldFiles();
 
-            try {
-                ZipFile zip = new ZipFile(zipFile);
-                if (zip.isEncrypted()) {
-                    zip.setPassword(OpenVPNClient.ZIP_PASSWORD);
-                }
-                zip.extractAll(activity.getFilesDir().getAbsolutePath());
-                if (zipFile.exists()) {
-                    zipFile.delete();
-                }
-
-                showSuccessAndRestartDialog();
-            } catch (Exception e) {
-                showToast("เกิดข้อผิดพลาด: " + e.getMessage());
-            }
+    try {
+        ZipFile zip = new ZipFile(zipFile);
+        if (zip.isEncrypted()) {
+            zip.setPassword(OpenVPNClient.ZIP_PASSWORD);
         }
+        zip.extractAll(activity.getFilesDir().getAbsolutePath());
+        if (zipFile.exists()) {
+            zipFile.delete();
+        }
+
+        showSuccessAndRestartDialog();
+    } catch (Exception e) {
+        showToast("เกิดข้อผิดพลาด: " + e.getMessage());
+    }
+}
+
 
         private void cleanOldFiles() {
             File dir = activity.getFilesDir();
