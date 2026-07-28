@@ -1,69 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="20dp"
-    android:background="#FFFFFF">
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
 
-    <!-- หัวข้อการอัปเดต -->
     <TextView
         android:id="@+id/tv_title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="พบการอัปเดตใหม่!"
-        android:textColor="#1A237E"
-        android:textSize="20sp"
+        android:text="พบอัปเดตใหม่"
         android:textStyle="bold"
-        android:gravity="center" />
+        android:textSize="18sp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
 
-    <!-- เลขเวอร์ชัน -->
     <TextView
         android:id="@+id/tv_version"
+        android:layout_marginTop="8dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
-        android:text="เวอร์ชัน 1.0.1"
-        android:textColor="#3F51B5"
-        android:textSize="14sp"
-        android:gravity="center" />
+        android:layout_height="wrap_content"/>
 
-    <!-- รายละเอียดการอัปเดต (Changelog) -->
     <TextView
         android:id="@+id/tv_changelog"
+        android:layout_marginTop="8dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="15dp"
-        android:layout_marginBottom="20dp"
-        android:text="รายละเอียด..."
-        android:textColor="#424242"
-        android:textSize="15sp" />
+        android:layout_height="wrap_content"/>
 
-    <!-- ปุ่มกด -->
     <LinearLayout
+        android:orientation="horizontal"
+        android:gravity="end"
+        android:layout_marginTop="16dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:layout_height="wrap_content">
 
         <Button
             android:id="@+id/btn_cancel"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="8dp"
             android:text="ยกเลิก"
-            android:textColor="#757575"
-            android:backgroundTint="#E0E0E0" />
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
 
         <Button
             android:id="@+id/btn_update"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:text="อัปเดตเลย"
-            android:textColor="#FFFFFF"
-            android:backgroundTint="#3F51B5" />
+            android:text="อัปเดต"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
     </LinearLayout>
-
 </LinearLayout>

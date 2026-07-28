@@ -199,9 +199,9 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         editor = pref.edit();
         
 if (this.prefs.get_boolean("ui_dark_theme", RETAIN_AUTH)) {
-    setCurrentTheme(android.R.style.Theme_Holo_NoActionBar);
+    setCurrentTheme(com.google.android.material.R.style.Theme_MaterialComponents_NoActionBar);
 } else {
-    setCurrentTheme(android.R.style.Theme_Holo_Light_NoActionBar);
+    setCurrentTheme(com.google.android.material.R.style.Theme_MaterialComponents_Light_NoActionBar);
 }
 
 setContentView(R.layout.form);
