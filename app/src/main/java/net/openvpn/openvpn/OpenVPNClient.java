@@ -1855,5 +1855,13 @@ this.textgroups = new View[]{this.cr_group, this.password_group, this.pk_passwor
         if (fabMenu != null) {
             fabMenu.setOnClickListener(v -> openOptionsMenu());
         }
+
+        if (this.button_group != null) {
+            this.button_group.setVisibility(View.VISIBLE);
+        }
+        if (this.connect_button != null) {
+            this.connect_button.setVisibility(View.VISIBLE);
+        }
     }
 }
+

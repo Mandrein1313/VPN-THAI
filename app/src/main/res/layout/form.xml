@@ -226,17 +226,31 @@
 
 			<LinearLayout
 				android:id="@+id/button_group"
-				style="@style/group">
+				android:orientation="vertical"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:paddingTop="12dp"
+				android:paddingBottom="12dp">
 
 				<Button
 					android:id="@+id/connect"
 					android:text="@string/connect"
-					style="@style/button"/>
+					android:layout_width="match_parent"
+					android:layout_height="48dp"
+					android:layout_marginBottom="8dp"
+					android:backgroundTint="#2E7D32"
+					android:textColor="#FFFFFF"
+					android:textSize="16sp"/>
 
 				<Button
 					android:id="@+id/disconnect"
 					android:text="@string/disconnect"
-					style="@style/button"/>
+					android:layout_width="match_parent"
+					android:layout_height="48dp"
+					android:backgroundTint="#C62828"
+					android:textColor="#FFFFFF"
+					android:textSize="16sp"
+					android:visibility="gone"/>
 
 			</LinearLayout>
 
