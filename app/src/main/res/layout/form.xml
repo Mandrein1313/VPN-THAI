@@ -456,6 +456,22 @@
 
 		</LinearLayout>
 
+		<!-- ปุ่มเมนู อยู่ท้ายสุด นอก conn_details_group -->
+		<LinearLayout
+			android:orientation="horizontal"
+			android:gravity="center"
+			android:padding="12dp"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content">
+
+			<Button
+				android:id="@+id/menu_button"
+				android:text="เมนู"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"/>
+
+		</LinearLayout>
+
 	</LinearLayout>
 
 </ScrollView>

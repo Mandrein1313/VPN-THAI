@@ -1850,5 +1850,10 @@ private void renameOvpnFilesToEncoded() {
         
         this.textgroups = new View[]{this.cr_group, this.password_group, this.pk_password_group, this.username_group};
         this.textviews = new EditText[]{this.response_edit, this.password_edit, this.pk_password_edit, this.username_edit};
+
+        Button menuButton = (Button) findViewById(R.id.menu_button);
+        if (menuButton != null) {
+            menuButton.setOnClickListener(v -> openOptionsMenu());
+        }
     }
 }
