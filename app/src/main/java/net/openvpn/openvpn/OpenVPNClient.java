@@ -332,18 +332,38 @@ public static class Constant {
             }
         }
 
-        private void showUpdateDialog(String version, final String downloadUrl, String changelog) {
-            if (activity.isFinishing() || activity.isDestroyed()) return;
-            new AlertDialog.Builder(activity)
-                    .setTitle("ตรวจพบการอัพเดท " + version)
-                    .setMessage(changelog)
-                    .setPositiveButton("ตกลง", (dialog, id) -> webView.loadUrl(downloadUrl))
-                    .setNegativeButton("ยกเลิก", (dialog, id) -> {
-                        saveVersionOnCancel("0.0");
-                        dialog.cancel();
-                    })
-                    .show();
-        }
+private void showUpdateDialog(Context context, String version, String changelog, String downloadUrl) {
+    // 1. สร้าง Dialog และใช้ LayoutInflater ดึง UI ที่เราออกแบบ
+    AlertDialog.Builder builder = new AlertDialog.Builder(context);
+    View view = LayoutInflater.from(context).inflate(R.layout.dialog_update, null);
+    builder.setView(view);
+
+    AlertDialog dialog = builder.create();
+
+    // 2. ผูกองค์ประกอบต่างๆ เข้ากับ View
+    TextView tvTitle = view.findViewById(R.id.tv_title);
+    TextView tvVersion = view.findViewById(R.id.tv_version);
+    TextView tvChangelog = view.findViewById(R.id.tv_changelog);
+    Button btnCancel = view.findViewById(R.id.btn_cancel);
+    Button btnUpdate = view.findViewById(R.id.btn_update);
+
+    // 3. กำหนดข้อความ
+    tvVersion.setText("เวอร์ชัน " + version);
+    tvChangelog.setText(changelog);
+
+    // 4. จัดการเหตุการณ์เมื่อกดปุ่ม
+    btnCancel.setOnClickListener(v -> dialog.dismiss());
+
+    btnUpdate.setOnClickListener(v -> {
+        dialog.dismiss();
+        // เรียก Method ดาวน์โหลด ZIP ของคุณต่อได้เลย
+        startDownloadZip(downloadUrl); 
+    });
+
+    // 5. แสดง Dialog
+    dialog.show();
+}
+
 
         private void saveVersionOnCancel(String version) {
             try {
