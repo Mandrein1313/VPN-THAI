@@ -401,6 +401,10 @@
 
 								<TextView
 									android:text="@string/server_ip"
+									style="@style/stats_key"/>
+
+								<TextView
+									android:id="@+id/server_ip"
 									style="@style/stats_value"/>
 
 							</TableRow>
@@ -451,71 +455,6 @@
 			</LinearLayout>
 
 		</LinearLayout>
-
-		<LinearLayout
-			android:padding="5.0dip"
-			style="@style/group">
-
-			<View
-				style="@style/spacer16"/>
-
-			<LinearLayout
-				android:orientation="horizontal"
-				style="@style/ad_layout">
-
-				<ImageView
-					android:src="@drawable/pt"
-					style="@style/ad_image"/>
-
-				<LinearLayout
-					android:orientation="vertical"
-					style="@style/ad_layout">
-
-					<TextView
-						android:text="@string/privatetunnel_ad"
-						style="@style/item"/>
-
-					<TextView
-						android:autoLink="web"
-						android:text="@string/privatetunnel_link"
-						style="@style/item"/>
-
-				</LinearLayout>
-
-			</LinearLayout>
-
-			<View
-				style="@style/spacer16"/>
-
-			<LinearLayout
-				android:orientation="horizontal"
-				style="@style/ad_layout">
-
-				<ImageView
-					android:src="@drawable/icon"
-					style="@style/ad_image"/>
-
-				<LinearLayout
-					android:orientation="vertical"
-					style="@style/ad_layout">
-
-					<TextView
-						android:text="@string/openvpn_ad"
-						style="@style/item"/>
-
-					<TextView
-						android:autoLink="web"
-						android:text="@string/openvpn_link"
-						style="@style/item"/>
-
-				</LinearLayout>
-
-			</LinearLayout>
-
-		</LinearLayout>
-
-		<View
-			style="@style/spacer16"/>
 
 	</LinearLayout>
 
