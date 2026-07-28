@@ -521,10 +521,6 @@
 		<View
 			style="@style/spacer16"/>
 
-		<TextView
-			android:text="@string/trademark"
-			style="@style/footer"/>
-
 	</LinearLayout>
 
 </ScrollView>
