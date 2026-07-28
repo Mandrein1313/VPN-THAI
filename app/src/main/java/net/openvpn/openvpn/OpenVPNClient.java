@@ -198,16 +198,19 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         pref = PreferenceManager.getDefaultSharedPreferences(this);
         editor = pref.edit();
         
-        init_default_preferences(this.prefs);
-        if (this.prefs.get_boolean("ui_dark_theme", RETAIN_AUTH)) {
-            setCurrentTheme(android.R.style.Theme_Holo);
-        } else {
-            setCurrentTheme(android.R.style.Theme_Holo_Light);
-        }
-        
-        setContentView(R.layout.form);
-        load_ui_elements();
+if (this.prefs.get_boolean("ui_dark_theme", RETAIN_AUTH)) {
+    setCurrentTheme(android.R.style.Theme_Holo_NoActionBar);
+} else {
+    setCurrentTheme(android.R.style.Theme_Holo_Light_NoActionBar);
+}
 
+setContentView(R.layout.form);
+
+if (getSupportActionBar() != null) {
+    getSupportActionBar().hide();
+}
+
+load_ui_elements();
         // ตัวจัดการระบบอัปเดตเวอร์ชันใหม่
         updateManager = new UpdateManager(this);
         updateManager.checkUpdateAuto(); // สั่งตรวจเช็กอัปเดตอัตโนมัติขณะเริ่มแอป
