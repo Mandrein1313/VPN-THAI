@@ -312,23 +312,24 @@
 		</LinearLayout>
 	</ScrollView>
 
-	<com.google.android.material.bottomappbar.BottomAppBar
+<com.google.android.material.bottomappbar.BottomAppBar
 		android:id="@+id/bottom_bar"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
 		android:layout_gravity="bottom"
 		android:backgroundTint="#2E7D32"
-		app:fabCradleMargin="10dp"
+		app:fabCradleMargin="14dp"
 		app:fabCradleRoundedCornerRadius="16dp"
 		app:fabCradleVerticalOffset="4dp"
-		app:fabAlignmentMode="end"/>
+		app:fabAlignmentMode="end"
+		app:menu="@menu/bottom_menu"/>
 
 	<com.google.android.material.floatingactionbutton.FloatingActionButton
 		android:id="@+id/fab_menu"
 		android:layout_width="wrap_content"
 		android:layout_height="wrap_content"
 		android:contentDescription="เมนู"
-		android:src="@android:drawable/ic_menu_more"
+		android:src="@android:drawable/ic_input_add"
 		app:backgroundTint="#66BB6A"
 		app:tint="#FFFFFF"
 		app:layout_anchor="@id/bottom_bar"/>

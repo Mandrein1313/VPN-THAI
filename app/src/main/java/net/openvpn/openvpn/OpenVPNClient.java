@@ -1870,9 +1870,39 @@ private void renameOvpnFilesToEncoded() {
 this.textgroups = new View[]{this.cr_group, this.password_group, this.pk_password_group, this.username_group};
         this.textviews = new EditText[]{this.response_edit, this.password_edit, this.pk_password_edit, this.username_edit};
 
+// Bottom bar + FAB
+        com.google.android.material.bottomappbar.BottomAppBar bottomBar =
+                findViewById(R.id.bottom_bar);
+        if (bottomBar != null) {
+            bottomBar.setOnMenuItemClickListener(item -> {
+                int id = item.getItemId();
+                if (id == R.id.bottom_home) {
+                    if (main_scroll_view != null) {
+                        main_scroll_view.fullScroll(ScrollView.FOCUS_UP);
+                    }
+                    return true;
+                } else if (id == R.id.bottom_settings) {
+                    startActivityForResult(new Intent(this, OpenVPNPrefs.class), 0);
+                    return true;
+                } else if (id == R.id.bottom_more) {
+                    android.widget.PopupMenu popup = new android.widget.PopupMenu(this, bottomBar);
+                    popup.getMenuInflater().inflate(R.menu.menu, popup.getMenu());
+                    popup.setOnMenuItemClickListener(this::onOptionsItemSelected);
+                    popup.show();
+                    return true;
+                }
+                return false;
+            });
+        }
+
         View fabMenu = findViewById(R.id.fab_menu);
         if (fabMenu != null) {
-            fabMenu.setOnClickListener(v -> openOptionsMenu());
+            fabMenu.setOnClickListener(v -> {
+                android.widget.PopupMenu popup = new android.widget.PopupMenu(this, v);
+                popup.getMenuInflater().inflate(R.menu.menu, popup.getMenu());
+                popup.setOnMenuItemClickListener(this::onOptionsItemSelected);
+                popup.show();
+            });
         }
 
         if (this.button_group != null) {
