@@ -1004,10 +1004,10 @@ private void renameOvpnFilesToEncoded() {
     }
 
     private void clear_auth() {
-        this.username_edit.setText("");
-        this.pk_password_edit.setText("");
-        this.password_edit.setText("");
-        this.response_edit.setText("");
+        if (this.username_edit != null) this.username_edit.setText("");
+        if (this.pk_password_edit != null) this.pk_password_edit.setText("");
+        if (this.password_edit != null) this.password_edit.setText("");
+        if (this.response_edit != null) this.response_edit.setText("");
     }
 
     private void ui_setup(boolean active, int flags, String profile_override) {
