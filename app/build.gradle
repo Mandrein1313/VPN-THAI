@@ -1,4 +1,4 @@
-;plugins {
+plugins {
     id 'com.android.application'
 }
 
@@ -63,7 +63,6 @@ dependencies {
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
     
     implementation 'androidx.coordinatorlayout:coordinatorlayout:1.2.0'
-    implementation 'com.google.android.material:material:1.11.0'
     
     // รวมไฟล์ jar ในโฟลเดอร์ libs ทั้งหมด (ซึ่งมี zip4j อยู่แล้ว)
     implementation fileTree(include: ['*.jar'], dir: 'libs')
