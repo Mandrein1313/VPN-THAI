@@ -130,6 +130,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
     private int startup_state = 0;
     private View stats_expansion_group;
     private View stats_group;
+    private String pendingVersionJson = null;
     
     private final Handler stats_timer_handler = new Handler(Looper.getMainLooper());
     private final Runnable stats_timer_task = new Runnable() {
@@ -343,6 +344,9 @@ private void onCheckUpdateFinished(JSONObject result) {
         }
 
 private void showUpdateDialog(Context context, String version, String changelog, String downloadUrl, String versionJson) {
+            // เก็บไว้ แล้วค่อยเซฟหลังอัปเดตสำเร็จ
+            this.pendingVersionJson = versionJson;
+
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
             View view = LayoutInflater.from(context).inflate(R.layout.dialog_update, null);
             builder.setView(view);
@@ -359,18 +363,17 @@ private void showUpdateDialog(Context context, String version, String changelog,
             if (tvVersion != null) tvVersion.setText("เวอร์ชัน " + version);
             if (tvChangelog != null) tvChangelog.setText(changelog);
 
-            if (btnCancel != null) btnCancel.setOnClickListener(v -> dialog.dismiss());
+            if (btnCancel != null) {
+                btnCancel.setOnClickListener(v -> {
+                    this.pendingVersionJson = null;
+                    dialog.dismiss();
+                });
+            }
 
             if (btnUpdate != null) {
                 btnUpdate.setOnClickListener(v -> {
                     dialog.dismiss();
-                    // บันทึกเวอร์ชันหลังกดอัปเดตจริง
-                    try {
-                        File file = new File(activity.getFilesDir(), "Version.txt");
-                        saveStringToFile(file, versionJson);
-                    } catch (Exception e) {
-                        Log.e(TAG, "Save version failed", e);
-                    }
+                    // ไม่เซฟเวอร์ชันตรงนี้ — เซฟหลังแตก zip สำเร็จ
                     startDownloadZip(downloadUrl);
                 });
             }
@@ -525,8 +528,18 @@ private void onZipDownloaded(File zipFile) {
             zipFile.delete();
         }
 
-        // เปลี่ยนชื่อไฟล์ .ovpn ให้เป็น URL-encoded ตามที่แอปต้องการ
         renameOvpnFilesToEncoded();
+
+        // บันทึกเวอร์ชันหลังอัปเดตสำเร็จเท่านั้น
+        if (pendingVersionJson != null) {
+            try {
+                File file = new File(activity.getFilesDir(), "Version.txt");
+                saveStringToFile(file, pendingVersionJson);
+            } catch (Exception e) {
+                Log.e(TAG, "Save version failed", e);
+            }
+            pendingVersionJson = null;
+        }
 
         showSuccessAndRestartDialog();
     } catch (Exception e) {
@@ -1888,15 +1901,15 @@ com.google.android.material.bottomappbar.BottomAppBar bottomBar =
         if (bottomBar != null) {
             bottomBar.setOnMenuItemClickListener(item -> {
                 int id = item.getItemId();
-                if (id == R.id.bottom_home) {
-                    // กดแล้วเช็คอัปเดต (บังคับเช็คใหม่ทุกครั้ง)
+if (id == R.id.bottom_home) {
                     Toast.makeText(this, "กำลังตรวจสอบอัปเดต...", Toast.LENGTH_SHORT).show();
                     if (updateManager != null) {
-                        updateManager.forceCheckUpdate();
+                        updateManager.checkUpdateManual();
                     } else {
                         Toast.makeText(this, "ระบบอัปเดตยังไม่พร้อม", Toast.LENGTH_SHORT).show();
                     }
                     return true;
+                
                 } else if (id == R.id.bottom_settings) {
                     startActivityForResult(new Intent(this, OpenVPNPrefs.class), 0);
                     return true;
