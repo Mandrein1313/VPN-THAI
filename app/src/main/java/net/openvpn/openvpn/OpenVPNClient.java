@@ -1871,14 +1871,17 @@ this.textgroups = new View[]{this.cr_group, this.password_group, this.pk_passwor
         this.textviews = new EditText[]{this.response_edit, this.password_edit, this.pk_password_edit, this.username_edit};
 
 // Bottom bar + FAB
-        com.google.android.material.bottomappbar.BottomAppBar bottomBar =
+com.google.android.material.bottomappbar.BottomAppBar bottomBar =
                 findViewById(R.id.bottom_bar);
         if (bottomBar != null) {
             bottomBar.setOnMenuItemClickListener(item -> {
                 int id = item.getItemId();
                 if (id == R.id.bottom_home) {
-                    if (main_scroll_view != null) {
-                        main_scroll_view.fullScroll(ScrollView.FOCUS_UP);
+                    // กดแล้วเช็คอัปเดต
+                    if (updateManager != null) {
+                        updateManager.checkUpdateManual();
+                    } else {
+                        Toast.makeText(this, "ระบบอัปเดตยังไม่พร้อม", Toast.LENGTH_SHORT).show();
                     }
                     return true;
                 } else if (id == R.id.bottom_settings) {
