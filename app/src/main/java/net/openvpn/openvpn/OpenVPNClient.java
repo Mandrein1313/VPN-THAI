@@ -130,7 +130,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
     private int startup_state = 0;
     private View stats_expansion_group;
     private View stats_group;
-    private String pendingVersionJson = null;
+    
     
     private final Handler stats_timer_handler = new Handler(Looper.getMainLooper());
     private final Runnable stats_timer_task = new Runnable() {
@@ -233,6 +233,7 @@ load_ui_elements();
         private final ExecutorService executor = Executors.newSingleThreadExecutor();
         private final Handler mainHandler = new Handler(Looper.getMainLooper());
         private boolean isSilentCheck = false;
+        private String pendingVersionJson = null;
 
         public UpdateManager(OpenVPNClient activity) {
             this.activity = activity;
