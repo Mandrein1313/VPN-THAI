@@ -265,6 +265,16 @@ load_ui_elements();
             this.isSilentCheck = false;
             startCheckUpdateTask();
         }
+        
+        public void forceCheckUpdate() {
+            // ลบ Version.txt เพื่อบังคับเช็คใหม่
+            File versionFile = new File(activity.getFilesDir(), "Version.txt");
+            if (versionFile.exists()) {
+                versionFile.delete();
+            }
+            this.isSilentCheck = false;
+            startCheckUpdateTask();
+        }
 
         private void startCheckUpdateTask() {
             executor.execute(() -> {
@@ -297,7 +307,7 @@ load_ui_elements();
             });
         }
 
-        private void onCheckUpdateFinished(JSONObject result) {
+private void onCheckUpdateFinished(JSONObject result) {
             if (result == null || activity.isFinishing() || activity.isDestroyed()) return;
 
             try {
@@ -314,9 +324,8 @@ load_ui_elements();
                 String changelog = result.optString("Changelog", "");
 
                 if (isNewVersionAvailable(serverVersion, currentVersion)) {
-                    showUpdateDialog(activity, serverVersion, changelog, downloadUrl);
-                    File file = new File(activity.getFilesDir(), "Version.txt");
-                    saveStringToFile(file, result.toString());
+                    // ไม่เซฟเวอร์ชันตอนนี้ — เซฟตอนกดปุ่มอัปเดตจริง
+                    showUpdateDialog(activity, serverVersion, changelog, downloadUrl, result.toString());
                 } else {
                     if (!isSilentCheck) {
                         showAlreadyLatestToast();
@@ -333,36 +342,39 @@ load_ui_elements();
             }
         }
 
-        private void showUpdateDialog(Context context, String version, String changelog, String downloadUrl) {
-            // 1. สร้าง Dialog และใช้ LayoutInflater ดึง UI ที่เราออกแบบ
+private void showUpdateDialog(Context context, String version, String changelog, String downloadUrl, String versionJson) {
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
             View view = LayoutInflater.from(context).inflate(R.layout.dialog_update, null);
             builder.setView(view);
 
             AlertDialog dialog = builder.create();
 
-            // 2. ผูกองค์ประกอบต่างๆ เข้ากับ View
             TextView tvTitle = view.findViewById(R.id.tv_title);
             TextView tvVersion = view.findViewById(R.id.tv_version);
             TextView tvChangelog = view.findViewById(R.id.tv_changelog);
             Button btnCancel = view.findViewById(R.id.btn_cancel);
             Button btnUpdate = view.findViewById(R.id.btn_update);
 
-            // 3. กำหนดข้อความ
+            if (tvTitle != null) tvTitle.setText("พบอัปเดตใหม่");
             if (tvVersion != null) tvVersion.setText("เวอร์ชัน " + version);
             if (tvChangelog != null) tvChangelog.setText(changelog);
 
-            // 4. จัดการเหตุการณ์เมื่อกดปุ่ม
             if (btnCancel != null) btnCancel.setOnClickListener(v -> dialog.dismiss());
 
             if (btnUpdate != null) {
                 btnUpdate.setOnClickListener(v -> {
                     dialog.dismiss();
-                    startDownloadZip(downloadUrl); 
+                    // บันทึกเวอร์ชันหลังกดอัปเดตจริง
+                    try {
+                        File file = new File(activity.getFilesDir(), "Version.txt");
+                        saveStringToFile(file, versionJson);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Save version failed", e);
+                    }
+                    startDownloadZip(downloadUrl);
                 });
             }
 
-            // 5. แสดง Dialog
             dialog.show();
         }
 
@@ -1877,9 +1889,10 @@ com.google.android.material.bottomappbar.BottomAppBar bottomBar =
             bottomBar.setOnMenuItemClickListener(item -> {
                 int id = item.getItemId();
                 if (id == R.id.bottom_home) {
-                    // กดแล้วเช็คอัปเดต
+                    // กดแล้วเช็คอัปเดต (บังคับเช็คใหม่ทุกครั้ง)
+                    Toast.makeText(this, "กำลังตรวจสอบอัปเดต...", Toast.LENGTH_SHORT).show();
                     if (updateManager != null) {
-                        updateManager.checkUpdateManual();
+                        updateManager.forceCheckUpdate();
                     } else {
                         Toast.makeText(this, "ระบบอัปเดตยังไม่พร้อม", Toast.LENGTH_SHORT).show();
                     }
@@ -1916,4 +1929,3 @@ com.google.android.material.bottomappbar.BottomAppBar bottomBar =
         }
     }
 }
-
