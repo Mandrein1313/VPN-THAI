@@ -345,24 +345,29 @@ private void onCheckUpdateFinished(JSONObject result) {
         }
 
 private void showUpdateDialog(Context context, String version, String changelog, String downloadUrl, String versionJson) {
-            // เก็บไว้ แล้วค่อยเซฟหลังอัปเดตสำเร็จ
             this.pendingVersionJson = versionJson;
 
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
             View view = LayoutInflater.from(context).inflate(R.layout.dialog_update, null);
             builder.setView(view);
+            builder.setCancelable(false);
 
             AlertDialog dialog = builder.create();
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            }
 
             TextView tvTitle = view.findViewById(R.id.tv_title);
             TextView tvVersion = view.findViewById(R.id.tv_version);
             TextView tvChangelog = view.findViewById(R.id.tv_changelog);
+            TextView tvStatus = view.findViewById(R.id.tv_status);
+            ProgressBar progressUpdate = view.findViewById(R.id.progress_update);
             Button btnCancel = view.findViewById(R.id.btn_cancel);
             Button btnUpdate = view.findViewById(R.id.btn_update);
 
             if (tvTitle != null) tvTitle.setText("พบอัปเดตใหม่");
             if (tvVersion != null) tvVersion.setText("เวอร์ชัน " + version);
-            if (tvChangelog != null) tvChangelog.setText(changelog);
+            if (tvChangelog != null) tvChangelog.setText(changelog != null ? changelog : "");
 
             if (btnCancel != null) {
                 btnCancel.setOnClickListener(v -> {
@@ -373,9 +378,20 @@ private void showUpdateDialog(Context context, String version, String changelog,
 
             if (btnUpdate != null) {
                 btnUpdate.setOnClickListener(v -> {
-                    dialog.dismiss();
-                    // ไม่เซฟเวอร์ชันตรงนี้ — เซฟหลังแตก zip สำเร็จ
-                    startDownloadZip(downloadUrl);
+                    // เปลี่ยนเป็นโหมดกำลังอัปเดต ใน dialog เดิม
+                    if (tvTitle != null) tvTitle.setText("กำลังอัปเดตเซิร์ฟเวอร์");
+                    if (tvStatus != null) {
+                        tvStatus.setVisibility(View.VISIBLE);
+                        tvStatus.setText("กรุณารอสักครู่...");
+                    }
+                    if (progressUpdate != null) progressUpdate.setVisibility(View.VISIBLE);
+                    if (btnCancel != null) btnCancel.setEnabled(false);
+                    if (btnUpdate != null) {
+                        btnUpdate.setEnabled(false);
+                        btnUpdate.setText("กำลังโหลด...");
+                    }
+
+                    startDownloadZipWithDialog(downloadUrl, dialog, tvTitle, tvStatus, progressUpdate, btnCancel, btnUpdate);
                 });
             }
 
@@ -507,6 +523,101 @@ private void showUpdateDialog(Context context, String version, String changelog,
                         progressDialog.dismiss();
                     }
                     onZipDownloaded(finalZipFile);
+                });
+            });
+        }
+
+private void startDownloadZipWithDialog(String downloadUrl, AlertDialog dialog,
+                                               TextView tvTitle, TextView tvStatus,
+                                               ProgressBar progressUpdate,
+                                               Button btnCancel, Button btnUpdate) {
+            executor.execute(() -> {
+                File zipFile = null;
+                HttpURLConnection conn = null;
+                try {
+                    URL url = new URL(downloadUrl);
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setConnectTimeout(10000);
+                    conn.setReadTimeout(15000);
+                    conn.connect();
+
+                    zipFile = new File(activity.getFilesDir(), "Configs.zip");
+                    try (InputStream in = conn.getInputStream();
+                         OutputStream out = new FileOutputStream(zipFile)) {
+                        byte[] buffer = new byte[8192];
+                        int read;
+                        while ((read = in.read(buffer)) > 0) {
+                            out.write(buffer, 0, read);
+                        }
+                        out.flush();
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Download zip failed", e);
+                    zipFile = null;
+                } finally {
+                    if (conn != null) conn.disconnect();
+                }
+
+                final File finalZipFile = zipFile;
+                mainHandler.post(() -> {
+                    if (finalZipFile == null || !finalZipFile.exists()) {
+                        if (tvTitle != null) tvTitle.setText("อัปเดตล้มเหลว");
+                        if (tvStatus != null) tvStatus.setText("ดาวน์โหลดไม่สำเร็จ ลองใหม่ภายหลัง");
+                        if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
+                        if (btnCancel != null) {
+                            btnCancel.setEnabled(true);
+                            btnCancel.setText("ปิด");
+                        }
+                        if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
+                        return;
+                    }
+
+                    // แตกไฟล์
+                    cleanOldFiles();
+                    try {
+                        ZipFile zip = new ZipFile(finalZipFile);
+                        if (zip.isEncrypted()) {
+                            zip.setPassword(OpenVPNClient.ZIP_PASSWORD);
+                        }
+                        zip.extractAll(activity.getFilesDir().getAbsolutePath());
+                        if (finalZipFile.exists()) finalZipFile.delete();
+
+                        renameOvpnFilesToEncoded();
+
+                        if (pendingVersionJson != null) {
+                            try {
+                                File file = new File(activity.getFilesDir(), "Version.txt");
+                                saveStringToFile(file, pendingVersionJson);
+                            } catch (Exception e) {
+                                Log.e(TAG, "Save version failed", e);
+                            }
+                            pendingVersionJson = null;
+                        }
+
+                        // สำเร็จ — รีเฟรชโปรไฟล์ในแอป ไม่รีสตาร์ท
+                        refreshProfilesInApp();
+
+                        if (tvTitle != null) tvTitle.setText("อัปเดตสำเร็จ");
+                        if (tvStatus != null) tvStatus.setText("โปรไฟล์ถูกอัปเดตแล้ว");
+                        if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
+                        if (btnCancel != null) {
+                            btnCancel.setEnabled(true);
+                            btnCancel.setText("ปิด");
+                            btnCancel.setOnClickListener(v -> dialog.dismiss());
+                        }
+                        if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
+
+                    } catch (Exception e) {
+                        if (tvTitle != null) tvTitle.setText("เกิดข้อผิดพลาด");
+                        if (tvStatus != null) tvStatus.setText(e.getMessage());
+                        if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
+                        if (btnCancel != null) {
+                            btnCancel.setEnabled(true);
+                            btnCancel.setText("ปิด");
+                        }
+                        if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
+                    }
                 });
             });
         }
