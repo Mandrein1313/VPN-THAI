@@ -590,14 +590,46 @@ private void renameOvpnFilesToEncoded() {
             }
         }
 
-        private void showSuccessAndRestartDialog() {
+private void showSuccessAndRestartDialog() {
             if (activity.isFinishing() || activity.isDestroyed()) return;
+
+            // โหลดโปรไฟล์ใหม่เข้าแอป โดยไม่ปิดแอป
+            refreshProfilesInApp();
+
             new AlertDialog.Builder(activity)
-                    .setTitle("อัพเดทเซิร์ฟเวอร์สำเร็จ")
-                    .setMessage("กรุณากดปุ่มรีสตาร์ท")
-                    .setCancelable(false)
-                    .setPositiveButton("รีสตาร์ท", (dialog, which) -> restartApp())
+                    .setTitle("อัปเดตเซิร์ฟเวอร์สำเร็จ")
+                    .setMessage("โปรไฟล์ถูกอัปเดตแล้ว")
+                    .setCancelable(true)
+                    .setPositiveButton("ตกลง", (dialog, which) -> dialog.dismiss())
                     .show();
+        }
+        
+        private void refreshProfilesInApp() {
+            try {
+                File dir = activity.getFilesDir();
+                File[] files = dir.listFiles();
+                if (files != null) {
+                    for (File f : files) {
+                        String name = f.getName().toLowerCase();
+                        if (name.endsWith(".ovpn")) {
+                            // นำเข้าโปรไฟล์แต่ละไฟล์เข้าแอป
+                            activity.submitImportProfileViaPathIntent(f.getAbsolutePath());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "refreshProfilesInApp failed", e);
+            }
+
+            // รีเฟรชหน้าจอ
+            activity.runOnUiThread(() -> {
+                try {
+                    activity.gen_ui_reset_event(true);
+                    activity.ui_setup(activity.is_active(), OpenVPNClient.UIF_RESET, null);
+                } catch (Exception e) {
+                    Log.e(TAG, "UI refresh failed", e);
+                }
+            });
         }
 
         private void restartApp() {
