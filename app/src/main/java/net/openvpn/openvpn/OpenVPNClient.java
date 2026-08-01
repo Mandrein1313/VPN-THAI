@@ -78,6 +78,12 @@ import net.openvpn.openvpn.OpenVPNService.Profile;
 import net.openvpn.openvpn.OpenVPNService.ProfileList;
 import org.json.JSONObject;
 
+import android.app.Dialog;
+import android.view.Window;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+
+
 public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermissionsResultCallback, OnClickListener, OnTouchListener, OnItemSelectedListener, OnEditorActionListener {
     private static final int REQUEST_IMPORT_PKCS12 = 3;
     private static final int REQUEST_IMPORT_PROFILE = 2;
@@ -841,37 +847,37 @@ private void showSuccessAndRestartDialog() {
                 .show();
     }
     
-    private void showLoginDialog() {
-    // 1. สร้าง Dialog จาก Custom Layout
+private void showLoginDialog() {
     final Dialog dialog = new Dialog(this);
     dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
     dialog.setContentView(R.layout.dialog_login);
     dialog.setCancelable(true);
 
-    // ทำให้พื้นหลัง Dialog ขอบโค้งเนียนขึ้น
     if (dialog.getWindow() != null) {
         dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         dialog.getWindow().setLayout(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
         );
     }
 
-    // 2. เชื่อม View ใน Dialog
-    ImageButton btnClose = dialog.findViewById(R.id.btn_close);
-    EditText etUsername = dialog.findViewById(R.id.dialog_username);
-    EditText etPassword = dialog.findViewById(R.id.dialog_password);
-    Button btnReset = dialog.findViewById(R.id.btn_dialog_reset);
-    Button btnSave = dialog.findViewById(R.id.btn_dialog_save);
-    Button btnConnect = dialog.findViewById(R.id.btn_dialog_connect);
+    android.widget.ImageButton btnClose = dialog.findViewById(R.id.btn_close);
+    android.widget.EditText etUsername = dialog.findViewById(R.id.dialog_username);
+    android.widget.EditText etPassword = dialog.findViewById(R.id.dialog_password);
+    android.widget.Button btnReset = dialog.findViewById(R.id.btn_dialog_reset);
+    android.widget.Button btnSave = dialog.findViewById(R.id.btn_dialog_save);
+    android.widget.Button btnConnect = dialog.findViewById(R.id.btn_dialog_connect);
 
-    // โหลดค่าเก่ามาใส่ไว้ในช่อง (ถ้ามี)
-    if (selectedProfile != null) {
-        etUsername.setText(selectedProfile.mUsername);
-        etPassword.setText(selectedProfile.mPassword);
+    // ดึงค่าจาก profile ปัจจุบันมาแสดง
+    if (this.profile != null) {
+        if (this.profile.get_auth_username() != null) {
+            etUsername.setText(this.profile.get_auth_username());
+        }
+        if (this.profile.get_auth_password() != null) {
+            etPassword.setText(this.profile.get_auth_password());
+        }
     }
 
-    // 3. จัดการปุ่มต่างๆ
     btnClose.setOnClickListener(v -> dialog.dismiss());
 
     // ปุ่ม RESET
@@ -884,12 +890,11 @@ private void showSuccessAndRestartDialog() {
     btnSave.setOnClickListener(v -> {
         String user = etUsername.getText().toString().trim();
         String pass = etPassword.getText().toString().trim();
-        if (selectedProfile != null) {
-            selectedProfile.mUsername = user;
-            selectedProfile.mPassword = pass;
-            selectedProfile.mSavePassword = true;
-            // บันทึกลง Preferences หรือ Database ของคุณ
-            Toast.makeText(this, "บันทึกข้อมูลเรียบร้อย", Toast.LENGTH_SHORT).show();
+        if (this.profile != null) {
+            this.profile.set_auth_username(user);
+            this.profile.set_auth_password(pass);
+            submit_profile(); // สั่งบันทึกโปรไฟล์ลงระบบ
+            android.widget.Toast.makeText(this, "บันทึกเรียบร้อย", android.widget.Toast.LENGTH_SHORT).show();
         }
         dialog.dismiss();
     });
@@ -898,19 +903,18 @@ private void showSuccessAndRestartDialog() {
     btnConnect.setOnClickListener(v -> {
         String user = etUsername.getText().toString().trim();
         String pass = etPassword.getText().toString().trim();
-        if (selectedProfile != null) {
-            selectedProfile.mUsername = user;
-            selectedProfile.mPassword = pass;
-            selectedProfile.mSavePassword = true;
-            
-            // สั่งเริ่มเชื่อมต่อ VPN
-            startVpnConnection(selectedProfile);
+        if (this.profile != null) {
+            this.profile.set_auth_username(user);
+            this.profile.set_auth_password(pass);
+            submit_profile(); // บันทึกข้อมูล
+            connect();        // สั่งเชื่อมต่อ VPN ด้วยคำสั่งเดิมของแอป
         }
         dialog.dismiss();
     });
 
     dialog.show();
 }
+
 
 
     protected void ok_dialog(String title, String message) {
