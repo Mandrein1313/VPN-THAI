@@ -868,13 +868,17 @@ private void showLoginDialog() {
     android.widget.Button btnSave = dialog.findViewById(R.id.btn_dialog_save);
     android.widget.Button btnConnect = dialog.findViewById(R.id.btn_dialog_connect);
 
-    // ดึงค่าจาก profile ปัจจุบันมาแสดง
-    if (this.profile != null) {
-        if (this.profile.get_auth_username() != null) {
-            etUsername.setText(this.profile.get_auth_username());
+    // 1. โหลด Username/Password เดิมจาก Prefs/Pwds ในแอป
+    if (this.prefs != null) {
+        String savedUser = this.prefs.get_string("username");
+        if (savedUser != null) {
+            etUsername.setText(savedUser);
         }
-        if (this.profile.get_auth_password() != null) {
-            etPassword.setText(this.profile.get_auth_password());
+    }
+    if (this.pwds != null) {
+        String savedPass = this.pwds.get_string("password");
+        if (savedPass != null) {
+            etPassword.setText(savedPass);
         }
     }
 
@@ -890,12 +894,15 @@ private void showLoginDialog() {
     btnSave.setOnClickListener(v -> {
         String user = etUsername.getText().toString().trim();
         String pass = etPassword.getText().toString().trim();
-        if (this.profile != null) {
-            this.profile.set_auth_username(user);
-            this.profile.set_auth_password(pass);
-            submit_profile(); // สั่งบันทึกโปรไฟล์ลงระบบ
-            android.widget.Toast.makeText(this, "บันทึกเรียบร้อย", android.widget.Toast.LENGTH_SHORT).show();
+        
+        if (this.prefs != null) {
+            this.prefs.set_string("username", user);
         }
+        if (this.pwds != null) {
+            this.pwds.set_string("password", pass);
+        }
+        
+        android.widget.Toast.makeText(this, "บันทึกเรียบร้อย", android.widget.Toast.LENGTH_SHORT).show();
         dialog.dismiss();
     });
 
@@ -903,17 +910,26 @@ private void showLoginDialog() {
     btnConnect.setOnClickListener(v -> {
         String user = etUsername.getText().toString().trim();
         String pass = etPassword.getText().toString().trim();
-        if (this.profile != null) {
-            this.profile.set_auth_username(user);
-            this.profile.set_auth_password(pass);
-            submit_profile(); // บันทึกข้อมูล
-            connect();        // สั่งเชื่อมต่อ VPN ด้วยคำสั่งเดิมของแอป
+        
+        if (this.prefs != null) {
+            this.prefs.set_string("username", user);
         }
+        if (this.pwds != null) {
+            this.pwds.set_string("password", pass);
+        }
+        
         dialog.dismiss();
+        
+        // สั่งกดปุ่มเชื่อมต่อหลักของแอปอัตโนมัติ
+        android.widget.Button mainConnectBtn = findViewById(R.id.connect);
+        if (mainConnectBtn != null) {
+            mainConnectBtn.performClick();
+        }
     });
 
     dialog.show();
 }
+
 
 
 
