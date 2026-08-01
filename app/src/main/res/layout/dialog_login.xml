@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#FFFFFF">
+
+    <!-- ส่วนหัวสีดำ พร้อมโลโก้ และปุ่มปิด (X) -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:background="#1E1E1E"
+        android:padding="16dp">
+
+        <ImageButton
+            android:id="@+id/btn_close"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_alignParentEnd="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            app:tint="#FFFFFF" />
+
+        <ImageView
+            android:id="@+id/img_dialog_logo"
+            android:layout_width="100dp"
+            android:layout_height="80dp"
+            android:layout_centerInParent="true"
+            android:src="@drawable/ic_launcher_foreground" /> <!-- เปลี่ยนเป็นโลโก้ของคุณ -->
+    </RelativeLayout>
+
+    <!-- เนื้อหาใน Dialog -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- ช่อง Username (Outlined Box) -->
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Username"
+            app:boxCornerRadiusBottomEnd="12dp"
+            app:boxCornerRadiusBottomStart="12dp"
+            app:boxCornerRadiusTopEnd="12dp"
+            app:boxCornerRadiusTopStart="12dp"
+            app:boxStrokeColor="#000000"
+            app:hintTextColor="#000000">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/dialog_username"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:textColor="#000000" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- ช่อง Password (Outlined Box) -->
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="Password"
+            app:boxCornerRadiusBottomEnd="12dp"
+            app:boxCornerRadiusBottomStart="12dp"
+            app:boxCornerRadiusTopEnd="12dp"
+            app:boxCornerRadiusTopStart="12dp"
+            app:boxStrokeColor="#000000"
+            app:hintTextColor="#000000"
+            app:endIconMode="password_toggle">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/dialog_password"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPassword"
+                android:textColor="#000000" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- ข้อความต้อนรับ & ลิงก์สมัคร -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="16dp"
+            android:text="Welcome! Login account to have an access to server."
+            android:textColor="#444444"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tv_need_account"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="4dp"
+            android:text="Need Account? Click here."
+            android:textColor="#D85D38"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <!-- ปุ่มควบคุม 3 ปุ่มด้านล่าง -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_dialog_reset"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="RESET"
+                android:textColor="#000000"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btn_dialog_save"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="SAVE"
+                android:textColor="#000000"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btn_dialog_connect"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="CONNECT"
+                android:textColor="#000000"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+    </LinearLayout>
+</LinearLayout>

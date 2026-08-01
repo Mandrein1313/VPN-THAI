@@ -840,6 +840,78 @@ private void showSuccessAndRestartDialog() {
                 })
                 .show();
     }
+    
+    private void showLoginDialog() {
+    // 1. สร้าง Dialog จาก Custom Layout
+    final Dialog dialog = new Dialog(this);
+    dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+    dialog.setContentView(R.layout.dialog_login);
+    dialog.setCancelable(true);
+
+    // ทำให้พื้นหลัง Dialog ขอบโค้งเนียนขึ้น
+    if (dialog.getWindow() != null) {
+        dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        dialog.getWindow().setLayout(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+    }
+
+    // 2. เชื่อม View ใน Dialog
+    ImageButton btnClose = dialog.findViewById(R.id.btn_close);
+    EditText etUsername = dialog.findViewById(R.id.dialog_username);
+    EditText etPassword = dialog.findViewById(R.id.dialog_password);
+    Button btnReset = dialog.findViewById(R.id.btn_dialog_reset);
+    Button btnSave = dialog.findViewById(R.id.btn_dialog_save);
+    Button btnConnect = dialog.findViewById(R.id.btn_dialog_connect);
+
+    // โหลดค่าเก่ามาใส่ไว้ในช่อง (ถ้ามี)
+    if (selectedProfile != null) {
+        etUsername.setText(selectedProfile.mUsername);
+        etPassword.setText(selectedProfile.mPassword);
+    }
+
+    // 3. จัดการปุ่มต่างๆ
+    btnClose.setOnClickListener(v -> dialog.dismiss());
+
+    // ปุ่ม RESET
+    btnReset.setOnClickListener(v -> {
+        etUsername.setText("");
+        etPassword.setText("");
+    });
+
+    // ปุ่ม SAVE
+    btnSave.setOnClickListener(v -> {
+        String user = etUsername.getText().toString().trim();
+        String pass = etPassword.getText().toString().trim();
+        if (selectedProfile != null) {
+            selectedProfile.mUsername = user;
+            selectedProfile.mPassword = pass;
+            selectedProfile.mSavePassword = true;
+            // บันทึกลง Preferences หรือ Database ของคุณ
+            Toast.makeText(this, "บันทึกข้อมูลเรียบร้อย", Toast.LENGTH_SHORT).show();
+        }
+        dialog.dismiss();
+    });
+
+    // ปุ่ม CONNECT
+    btnConnect.setOnClickListener(v -> {
+        String user = etUsername.getText().toString().trim();
+        String pass = etPassword.getText().toString().trim();
+        if (selectedProfile != null) {
+            selectedProfile.mUsername = user;
+            selectedProfile.mPassword = pass;
+            selectedProfile.mSavePassword = true;
+            
+            // สั่งเริ่มเชื่อมต่อ VPN
+            startVpnConnection(selectedProfile);
+        }
+        dialog.dismiss();
+    });
+
+    dialog.show();
+}
+
 
     protected void ok_dialog(String title, String message) {
         ok_dialog(title, message, null);
