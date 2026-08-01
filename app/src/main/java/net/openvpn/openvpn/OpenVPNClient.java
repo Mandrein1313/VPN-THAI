@@ -1662,6 +1662,34 @@ private void showLoginDialog() {
 
     private void start_connect() {
         cancel_ui_reset();
+
+        Profile prof = current_profile();
+        if (prof != null) {
+            boolean autologin = prof.get_autologin();
+            boolean dynamic_challenge = prof.is_dynamic_challenge();
+
+            // เช็กกรณีโปรไฟล์ต้องใช้ Username / Password
+            if (!autologin && !dynamic_challenge) {
+                String saved_user = this.prefs.get_string_by_profile(prof.get_name(), "username");
+                String saved_pwd = this.pwds.get("auth", prof.get_name());
+
+                // 1. ถ้ายังไม่มี Username หรือ Password ในระบบ ให้เด้ง Dialog ขึ้นมาถามก่อน
+                if (saved_user == null || saved_user.trim().isEmpty() || saved_pwd == null || saved_pwd.trim().isEmpty()) {
+                    showLoginDialog(prof); // เรียก Dialog กรอกข้อมูลของคุณ
+                    return; // ยับยั้งการเชื่อมต่อไว้ก่อน
+                }
+
+                // 2. ถ้ามีข้อมูลแล้ว ยัดค่ากลับเข้า EditText ซ่อนเบื้องหลัง เพื่อส่งให้ OpenVPN Core
+                if (this.username_edit != null) {
+                    this.username_edit.setText(saved_user);
+                }
+                if (this.password_edit != null) {
+                    this.password_edit.setText(saved_pwd);
+                }
+            }
+        }
+
+        // เริ่มกระบวนการเชื่อมต่อ VPN ตามปกติ
         Intent intent = VpnService.prepare(this);
         if (intent != null) {
             try {
@@ -1678,43 +1706,6 @@ private void showLoginDialog() {
         resolve_epki_alias_then_connect();
     }
 
-    @Override
-    public boolean onTouch(View v, MotionEvent event) {
-        boolean new_expand_stats = RETAIN_AUTH;
-        if (v.getId() != R.id.conn_details_boxed || event.getAction() != MotionEvent.ACTION_DOWN) {
-            return RETAIN_AUTH;
-        }
-        if (!this.prefs.get_boolean("expand_stats", RETAIN_AUTH)) {
-            new_expand_stats = true;
-        }
-        this.prefs.set_boolean("expand_stats", new_expand_stats);
-        set_visibility_stats_expansion_group();
-        return true;
-    }
-
-    @Override
-    public void onItemSelected(AdapterView<?> parent, View v, int position, long id) {
-        cancel_ui_reset();
-        int viewid = parent.getId();
-        if (viewid == R.id.profile) {
-            ui_setup(is_active(), 327680, null);
-        } else if (viewid == R.id.proxy) {
-            ProxyList proxy_list = get_proxy_list();
-            if (proxy_list != null) {
-                proxy_list.set_enabled(SpinUtil.get_spinner_list_item(this.proxy_spin, position));
-                proxy_list.save();
-                gen_ui_reset_event(true);
-            }
-        } else if (viewid == R.id.server) {
-            String server = SpinUtil.get_spinner_list_item(this.server_spin, position);
-            this.prefs.set_string_by_profile(SpinUtil.get_spinner_selected_item(this.profile_spin), "server", server);
-            gen_ui_reset_event(true);
-        }
-    }
-
-    @Override
-    public void onNothingSelected(AdapterView<?> adapterView) {
-    }
 
     private void menu_add(ContextMenu menu, int id, boolean enabled, String menu_key) {
         MenuItem item = menu.add(0, id, 0, id).setEnabled(enabled);
