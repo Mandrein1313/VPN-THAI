@@ -619,7 +619,8 @@ private void startDownloadZipWithDialog(String downloadUrl, AlertDialog dialog,
                 zip.extractAll(activity.getFilesDir().getAbsolutePath());
                 if (finalZipFile.exists()) finalZipFile.delete();
 
-                renameOvpnFilesToEncoded();
+                // ไม่ rename แล้ว — ใช้ชื่อไฟล์ตาม ZIP เลย
+                // renameOvpnFilesToEncoded();
 
                 if (pendingVersionJson != null) {
                     try {
@@ -753,50 +754,49 @@ private void showSuccessAndRestartDialog() {
         }
         
  private void refreshProfilesInApp() {
-            // 1) ลบโปรไฟล์เก่าทั้งหมดใน service ก่อน
+            // 1) เก็บชื่อโปรไฟล์เก่า
+            final java.util.ArrayList<String> names = new java.util.ArrayList<>();
             try {
                 ProfileList proflist = activity.profile_list();
                 if (proflist != null) {
-                    // copy ชื่อออกมาก่อน กัน concurrent modification
-                    java.util.ArrayList<String> names = new java.util.ArrayList<>();
                     for (int i = 0; i < proflist.size(); i++) {
                         Profile p = (Profile) proflist.get(i);
                         if (p != null && p.get_name() != null) {
                             names.add(p.get_name());
                         }
                     }
-                    for (String name : names) {
-                        try {
-                            // ลบโดยตรง (ไม่ถาม confirm)
-                            activity.submitDeleteProfileIntent(name);
-                        } catch (Exception e) {
-                            Log.e(TAG, "Delete profile failed: " + name, e);
-                        }
-                    }
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Clear old profiles failed", e);
+                Log.e(TAG, "List profiles failed", e);
             }
 
-            // 2) นำเข้า .ovpn ใหม่จากไฟล์
-            try {
-                File dir = activity.getFilesDir();
-                File[] files = dir.listFiles();
-                if (files != null) {
-                    for (File f : files) {
-                        String name = f.getName().toLowerCase();
-                        if (name.endsWith(".ovpn")) {
-                            activity.submitImportProfileViaPathIntent(f.getAbsolutePath());
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "refreshProfilesInApp import failed", e);
-            }
-
-            // 3) รีเฟรช UI หน่อยให้ service ทำงานทัน
-            activity.runOnUiThread(() -> {
+            // 2) ลบทั้งหมด
+            for (String name : names) {
                 try {
+                    activity.submitDeleteProfileIntent(name);
+                } catch (Exception e) {
+                    Log.e(TAG, "Delete profile failed: " + name, e);
+                }
+            }
+
+            // 3) รอให้ service ลบเสร็จ แล้วค่อย import
+            activity.runOnUiThread(() -> {
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    try {
+                        File dir = activity.getFilesDir();
+                        File[] files = dir.listFiles();
+                        if (files != null) {
+                            for (File f : files) {
+                                if (f.getName().toLowerCase().endsWith(".ovpn")) {
+                                    activity.submitImportProfileViaPathIntent(f.getAbsolutePath());
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Import ovpn failed", e);
+                    }
+
+                    // 4) รีเฟรช UI อีกที
                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
                         try {
                             activity.gen_ui_reset_event(true);
@@ -804,10 +804,8 @@ private void showSuccessAndRestartDialog() {
                         } catch (Exception e) {
                             Log.e(TAG, "UI refresh failed", e);
                         }
-                    }, 800);
-                } catch (Exception e) {
-                    Log.e(TAG, "UI refresh schedule failed", e);
-                }
+                    }, 600);
+                }, 1000); // รอ 1 วินาทีหลังลบ
             });
         }
 
