@@ -868,16 +868,19 @@ private void showLoginDialog() {
     android.widget.Button btnSave = dialog.findViewById(R.id.btn_dialog_save);
     android.widget.Button btnConnect = dialog.findViewById(R.id.btn_dialog_connect);
 
-    // 1. โหลด Username/Password เดิมจาก Prefs/Pwds ในแอป
+    // ดึง Profile Name ปัจจุบันมาเตรียมไว้
+    String profileName = selected_profile_name();
+
+    // 1. โหลด Username/Password เดิมตาม Profile ที่เลือก
     if (this.prefs != null) {
-        String savedUser = this.prefs.get_string("username");
+        // 🛠️ แก้ไข: เปลี่ยนจาก get_string เป็น get_string_by_profile
+        String savedUser = this.prefs.get_string_by_profile(profileName, "username");
         if (savedUser != null) {
             etUsername.setText(savedUser);
         }
     }
     if (this.pwds != null) {
-        // แก้ไข: เพิ่ม selected_profile_name() เป็นพารามิเตอร์ตัวที่ 2
-        String savedPass = this.pwds.get("auth", selected_profile_name());
+        String savedPass = this.pwds.get("auth", profileName);
         if (savedPass != null) {
             etPassword.setText(savedPass);
         }
@@ -897,11 +900,11 @@ private void showLoginDialog() {
         String pass = etPassword.getText().toString().trim();
         
         if (this.prefs != null) {
-            this.prefs.set_string("username", user);
+            // 🛠️ แก้ไข: เปลี่ยนเป็น set_string_by_profile
+            this.prefs.set_string_by_profile(profileName, "username", user);
         }
         if (this.pwds != null) {
-            // แก้ไข: เพิ่ม selected_profile_name() และระบุชนิดรหัสผ่านเป็น "auth"
-            this.pwds.set("auth", selected_profile_name(), pass);
+            this.pwds.set("auth", profileName, pass);
         }
         
         android.widget.Toast.makeText(this, "บันทึกเรียบร้อย", android.widget.Toast.LENGTH_SHORT).show();
@@ -914,11 +917,11 @@ private void showLoginDialog() {
         String pass = etPassword.getText().toString().trim();
         
         if (this.prefs != null) {
-            this.prefs.set_string("username", user);
+            // 🛠️ แก้ไข: เปลี่ยนเป็น set_string_by_profile
+            this.prefs.set_string_by_profile(profileName, "username", user);
         }
         if (this.pwds != null) {
-            // แก้ไข: เพิ่ม selected_profile_name() และระบุชนิดรหัสผ่านเป็น "auth"
-            this.pwds.set("auth", selected_profile_name(), pass);
+            this.pwds.set("auth", profileName, pass);
         }
         
         dialog.dismiss();
@@ -932,6 +935,7 @@ private void showLoginDialog() {
 
     dialog.show();
 }
+
 
 
     protected void ok_dialog(String title, String message) {
