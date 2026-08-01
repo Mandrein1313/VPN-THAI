@@ -528,99 +528,121 @@ private void showUpdateDialog(Context context, String version, String changelog,
         }
 
 private void startDownloadZipWithDialog(String downloadUrl, AlertDialog dialog,
-                                               TextView tvTitle, TextView tvStatus,
-                                               ProgressBar progressUpdate,
-                                               Button btnCancel, Button btnUpdate) {
-            executor.execute(() -> {
-                File zipFile = null;
-                HttpURLConnection conn = null;
-                try {
-                    URL url = new URL(downloadUrl);
-                    conn = (HttpURLConnection) url.openConnection();
-                    conn.setRequestMethod("GET");
-                    conn.setConnectTimeout(10000);
-                    conn.setReadTimeout(15000);
-                    conn.connect();
+                                       TextView tvTitle, TextView tvStatus,
+                                       ProgressBar progressUpdate,
+                                       Button btnCancel, Button btnUpdate) {
+    executor.execute(() -> {
+        File zipFile = null;
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(downloadUrl);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            //  ใส่ User-Agent เพื่อไม่ให้ GitHub บล็อกการดาวน์โหลด
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile)");
+            conn.setInstanceFollowRedirects(true); //  อนุญาตให้ Redirect ไปยังไฟล์ดาวน์โหลดจริงได้
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(15000);
+            conn.connect();
 
-                    zipFile = new File(activity.getFilesDir(), "Configs.zip");
-                    try (InputStream in = conn.getInputStream();
-                         OutputStream out = new FileOutputStream(zipFile)) {
-                        byte[] buffer = new byte[8192];
-                        int read;
-                        while ((read = in.read(buffer)) > 0) {
-                            out.write(buffer, 0, read);
-                        }
-                        out.flush();
+            // เช็ก HTTP Response Code (ต้องเป็น 200 OK)
+            int responseCode = conn.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_MOVED_PERM || responseCode == HttpURLConnection.HTTP_MOVED_TEMP) {
+                // หากมีการ Redirect
+                String newUrl = conn.getHeaderField("Location");
+                conn.disconnect();
+                
+                url = new URL(newUrl);
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile)");
+                conn.connect();
+                responseCode = conn.getResponseCode();
+            }
+
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                zipFile = new File(activity.getFilesDir(), "Configs.zip");
+                try (InputStream in = conn.getInputStream();
+                     OutputStream out = new FileOutputStream(zipFile)) {
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    while ((read = in.read(buffer)) > 0) {
+                        out.write(buffer, 0, read);
                     }
-                } catch (Exception e) {
-                    Log.e(TAG, "Download zip failed", e);
-                    zipFile = null;
-                } finally {
-                    if (conn != null) conn.disconnect();
+                    out.flush();
+                }
+            } else {
+                Log.e(TAG, "Download failed with HTTP code: " + responseCode);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Download zip failed", e);
+            zipFile = null;
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+
+        final File finalZipFile = zipFile;
+        mainHandler.post(() -> {
+            if (finalZipFile == null || !finalZipFile.exists()) {
+                if (tvTitle != null) tvTitle.setText("อัปเดตล้มเหลว");
+                if (tvStatus != null) tvStatus.setText("ดาวน์โหลดไม่สำเร็จ ลองใหม่ภายหลัง");
+                if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
+                if (btnCancel != null) {
+                    btnCancel.setEnabled(true);
+                    btnCancel.setText("ปิด");
+                }
+                if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
+                return;
+            }
+
+            // แตกไฟล์
+            cleanOldFiles();
+            try {
+                ZipFile zip = new ZipFile(finalZipFile);
+                if (zip.isEncrypted()) {
+                    zip.setPassword(OpenVPNClient.ZIP_PASSWORD);
+                }
+                zip.extractAll(activity.getFilesDir().getAbsolutePath());
+                if (finalZipFile.exists()) finalZipFile.delete();
+
+                renameOvpnFilesToEncoded();
+
+                if (pendingVersionJson != null) {
+                    try {
+                        File file = new File(activity.getFilesDir(), "Version.txt");
+                        saveStringToFile(file, pendingVersionJson);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Save version failed", e);
+                    }
+                    pendingVersionJson = null;
                 }
 
-                final File finalZipFile = zipFile;
-                mainHandler.post(() -> {
-                    if (finalZipFile == null || !finalZipFile.exists()) {
-                        if (tvTitle != null) tvTitle.setText("อัปเดตล้มเหลว");
-                        if (tvStatus != null) tvStatus.setText("ดาวน์โหลดไม่สำเร็จ ลองใหม่ภายหลัง");
-                        if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
-                        if (btnCancel != null) {
-                            btnCancel.setEnabled(true);
-                            btnCancel.setText("ปิด");
-                        }
-                        if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
-                        return;
-                    }
+                // สำเร็จ — รีเฟรชโปรไฟล์ในแอป
+                refreshProfilesInApp();
 
-                    // แตกไฟล์
-                    cleanOldFiles();
-                    try {
-                        ZipFile zip = new ZipFile(finalZipFile);
-                        if (zip.isEncrypted()) {
-                            zip.setPassword(OpenVPNClient.ZIP_PASSWORD);
-                        }
-                        zip.extractAll(activity.getFilesDir().getAbsolutePath());
-                        if (finalZipFile.exists()) finalZipFile.delete();
+                if (tvTitle != null) tvTitle.setText("อัปเดตสำเร็จ");
+                if (tvStatus != null) tvStatus.setText("โปรไฟล์ถูกอัปเดตแล้ว");
+                if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
+                if (btnCancel != null) {
+                    btnCancel.setEnabled(true);
+                    btnCancel.setText("ปิด");
+                    btnCancel.setOnClickListener(v -> dialog.dismiss());
+                }
+                if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
 
-                        renameOvpnFilesToEncoded();
+            } catch (Exception e) {
+                if (tvTitle != null) tvTitle.setText("เกิดข้อผิดพลาด");
+                if (tvStatus != null) tvStatus.setText(e.getMessage());
+                if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
+                if (btnCancel != null) {
+                    btnCancel.setEnabled(true);
+                    btnCancel.setText("ปิด");
+                }
+                if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
+            }
+        });
+    });
+}
 
-                        if (pendingVersionJson != null) {
-                            try {
-                                File file = new File(activity.getFilesDir(), "Version.txt");
-                                saveStringToFile(file, pendingVersionJson);
-                            } catch (Exception e) {
-                                Log.e(TAG, "Save version failed", e);
-                            }
-                            pendingVersionJson = null;
-                        }
-
-                        // สำเร็จ — รีเฟรชโปรไฟล์ในแอป ไม่รีสตาร์ท
-                        refreshProfilesInApp();
-
-                        if (tvTitle != null) tvTitle.setText("อัปเดตสำเร็จ");
-                        if (tvStatus != null) tvStatus.setText("โปรไฟล์ถูกอัปเดตแล้ว");
-                        if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
-                        if (btnCancel != null) {
-                            btnCancel.setEnabled(true);
-                            btnCancel.setText("ปิด");
-                            btnCancel.setOnClickListener(v -> dialog.dismiss());
-                        }
-                        if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
-
-                    } catch (Exception e) {
-                        if (tvTitle != null) tvTitle.setText("เกิดข้อผิดพลาด");
-                        if (tvStatus != null) tvStatus.setText(e.getMessage());
-                        if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
-                        if (btnCancel != null) {
-                            btnCancel.setEnabled(true);
-                            btnCancel.setText("ปิด");
-                        }
-                        if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
-                    }
-                });
-            });
-        }
 
 private void onZipDownloaded(File zipFile) {
     if (zipFile == null || !zipFile.exists()) {
