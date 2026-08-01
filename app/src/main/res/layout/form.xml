@@ -71,7 +71,7 @@
 					android:layout_width="match_parent"
 					android:layout_height="56dp"
 					android:layout_marginBottom="8dp"
-					android:backgroundTint="#2E7D32"
+					android:backgroundTint="#FF0CEB17"
 					android:textColor="#FFFFFF"
 					android:textSize="18sp"
 					android:textStyle="bold"
@@ -312,12 +312,12 @@
 		</LinearLayout>
 	</ScrollView>
 
-<com.google.android.material.bottomappbar.BottomAppBar
+	<com.google.android.material.bottomappbar.BottomAppBar
 		android:id="@+id/bottom_bar"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
 		android:layout_gravity="bottom"
-		android:backgroundTint="#2E7D32"
+		android:backgroundTint="#FF00FFF8"
 		app:fabCradleMargin="14dp"
 		app:fabCradleRoundedCornerRadius="16dp"
 		app:fabCradleVerticalOffset="4dp"
@@ -330,7 +330,7 @@
 		android:layout_height="wrap_content"
 		android:contentDescription="เมนู"
 		android:src="@android:drawable/ic_input_add"
-		app:backgroundTint="#66BB6A"
+		app:backgroundTint="#FFF00E3D"
 		app:tint="#FFFFFF"
 		app:layout_anchor="@id/bottom_bar"/>
 
