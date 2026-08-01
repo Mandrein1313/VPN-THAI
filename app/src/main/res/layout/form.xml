@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent">
+
+	<ScrollView
+		android:id="@+id/main_scroll_view"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:layout_marginBottom="72dp"
+		android:fillViewport="true">
+
+		<LinearLayout
+			android:padding="16dp"
+			android:orientation="vertical"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content">
+
+			<!-- โปรไฟล์ -->
+			<RelativeLayout
+				android:id="@+id/profile_group"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:paddingBottom="8dp">
+
+				<LinearLayout
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_toLeftOf="@+id/profile_edit"
+					android:orientation="vertical">
+
+					<TextView
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:text="@string/profile_prompt"
+						android:textSize="14sp"
+						android:textColor="#666666"/>
+
+					<Spinner
+						android:id="@+id/profile"
+						android:layout_width="match_parent"
+						android:layout_height="48dp"
+						android:focusable="false"/>
+				</LinearLayout>
+
+				<ImageButton
+					android:id="@+id/profile_edit"
+					android:layout_width="48dp"
+					android:layout_height="48dp"
+					android:layout_alignParentRight="true"
+					android:layout_centerVertical="true"
+					android:src="@drawable/edit"
+					android:background="?attr/selectableItemBackgroundBorderless"/>
+			</RelativeLayout>
+
+			<!-- ปุ่มเชื่อมต่อ อยู่ใต้โปรไฟล์ทันที -->
+			<LinearLayout
+				android:id="@+id/button_group"
+				android:orientation="vertical"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:paddingTop="8dp"
+				android:paddingBottom="12dp"
+				android:visibility="visible">
+
+				<Button
+					android:id="@+id/connect"
+					android:text="เชื่อมต่อ"
+					android:layout_width="match_parent"
+					android:layout_height="56dp"
+					android:layout_marginBottom="8dp"
+					android:backgroundTint="#FF0CEB17"
+					android:textColor="#FFFFFF"
+					android:textSize="18sp"
+					android:textStyle="bold"
+					android:visibility="visible"/>
+
+				<Button
+					android:id="@+id/disconnect"
+					android:text="ตัดการเชื่อมต่อ"
+					android:layout_width="match_parent"
+					android:layout_height="56dp"
+					android:backgroundTint="#C62828"
+					android:textColor="#FFFFFF"
+					android:textSize="18sp"
+					android:textStyle="bold"
+					android:visibility="gone"/>
+			</LinearLayout>
+
+			<!-- สถานะ -->
+			<LinearLayout
+				android:gravity="center_vertical"
+				android:orientation="horizontal"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:paddingTop="8dp"
+				android:paddingBottom="8dp">
+
+				<ImageView
+					android:id="@+id/status_icon"
+					android:layout_width="32dp"
+					android:layout_height="32dp"/>
+
+				<TextView
+					android:id="@+id/status"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_weight="1"
+					android:paddingLeft="8dp"
+					android:textSize="14sp"/>
+			</LinearLayout>
+
+			<ProgressBar
+				android:id="@+id/progress"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:visibility="gone"
+				style="@android:style/Widget.ProgressBar.Horizontal"/>
+
+			<!-- กลุ่มที่เหลือ (ซ่อนตามปกติ) -->
+			<LinearLayout
+				android:id="@+id/post_import_help_blurb"
+				android:visibility="gone"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="vertical"/>
+
+			<RelativeLayout
+				android:id="@+id/proxy_group"
+				android:visibility="gone"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content">
+				<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+					<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/proxy_prompt"/>
+					<Spinner android:id="@+id/proxy" android:layout_width="match_parent" android:layout_height="48dp"/>
+				</LinearLayout>
+				<ImageButton android:id="@+id/proxy_edit" android:layout_width="48dp" android:layout_height="48dp" android:layout_alignParentRight="true" android:src="@drawable/edit"/>
+			</RelativeLayout>
+
+			<LinearLayout
+				android:id="@+id/server_group"
+				android:visibility="gone"
+				android:orientation="vertical"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content">
+				<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/server_prompt"/>
+				<Spinner android:id="@+id/server" android:layout_width="match_parent" android:layout_height="48dp"/>
+			</LinearLayout>
+
+			<LinearLayout
+				android:id="@+id/username_group"
+				android:visibility="gone"
+				android:orientation="vertical"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content">
+				<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/username"/>
+				<EditText android:id="@+id/username" android:layout_width="match_parent" android:layout_height="48dp" android:inputType="text"/>
+			</LinearLayout>
+
+			<LinearLayout
+				android:id="@+id/pk_password_group"
+				android:visibility="gone"
+				android:orientation="vertical"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content">
+				<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/pk_password"/>
+				<RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content">
+					<EditText android:id="@+id/pk_password" android:layout_width="match_parent" android:layout_height="48dp" android:inputType="textPassword" android:layout_toLeftOf="@+id/pk_password_save"/>
+					<CheckBox android:id="@+id/pk_password_save" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentRight="true" android:text="@string/pk_password_save_prompt"/>
+				</RelativeLayout>
+			</LinearLayout>
+
+			<LinearLayout
+				android:id="@+id/password_group"
+				android:visibility="gone"
+				android:orientation="vertical"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content">
+				<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/password"/>
+				<RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content">
+					<EditText android:id="@+id/password" android:layout_width="match_parent" android:layout_height="48dp" android:inputType="textPassword" android:layout_toLeftOf="@+id/password_save"/>
+					<CheckBox android:id="@+id/password_save" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentRight="true" android:text="@string/password_save_prompt"/>
+				</RelativeLayout>
+			</LinearLayout>
+
+			<LinearLayout
+				android:id="@+id/cr_group"
+				android:visibility="gone"
+				android:orientation="vertical"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content">
+				<TextView android:id="@+id/challenge" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+				<EditText android:id="@+id/response" android:layout_width="match_parent" android:layout_height="48dp"/>
+			</LinearLayout>
+
+			<!-- รายละเอียดการเชื่อมต่อ -->
+			<LinearLayout
+				android:id="@+id/conn_details_group"
+				android:visibility="gone"
+				android:orientation="vertical"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:paddingTop="8dp">
+
+				<LinearLayout
+					android:id="@+id/conn_details_boxed"
+					android:orientation="vertical"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content">
+
+					<LinearLayout
+						android:id="@+id/stats_group"
+						android:orientation="vertical"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content">
+
+						<TextView
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="@string/stats_group_header"
+							android:textStyle="bold"/>
+
+						<TableLayout android:layout_width="match_parent" android:layout_height="wrap_content">
+							<TableRow>
+								<TextView android:text="@string/duration" android:padding="4dp"/>
+								<TextView android:id="@+id/duration" android:padding="4dp"/>
+							</TableRow>
+							<TableRow>
+								<TextView android:text="@string/last_pkt_recv" android:padding="4dp"/>
+								<TextView android:id="@+id/last_pkt_recv" android:padding="4dp"/>
+							</TableRow>
+							<TableRow>
+								<TextView android:text="@string/bytes_in" android:padding="4dp"/>
+								<TextView android:id="@+id/bytes_in" android:padding="4dp"/>
+							</TableRow>
+							<TableRow>
+								<TextView android:text="@string/bytes_out" android:padding="4dp"/>
+								<TextView android:id="@+id/bytes_out" android:padding="4dp"/>
+							</TableRow>
+						</TableLayout>
+					</LinearLayout>
+
+					<LinearLayout
+						android:id="@+id/stats_expansion_group"
+						android:orientation="vertical"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:visibility="gone">
+
+						<LinearLayout
+							android:id="@+id/info_group"
+							android:orientation="vertical"
+							android:layout_width="match_parent"
+							android:layout_height="wrap_content">
+
+							<TextView
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="@string/info_group_header"
+								android:textStyle="bold"
+								android:paddingTop="12dp"/>
+
+							<TableLayout android:layout_width="match_parent" android:layout_height="wrap_content">
+								<TableRow android:id="@+id/ipv4_addr_row">
+									<TextView android:text="@string/ipv4_addr" android:padding="4dp"/>
+									<TextView android:id="@+id/ipv4_addr" android:padding="4dp"/>
+								</TableRow>
+								<TableRow android:id="@+id/ipv6_addr_row">
+									<TextView android:text="@string/ipv6_addr" android:padding="4dp"/>
+									<TextView android:id="@+id/ipv6_addr" android:padding="4dp"/>
+								</TableRow>
+								<TableRow android:id="@+id/user_row">
+									<TextView android:text="@string/user" android:padding="4dp"/>
+									<TextView android:id="@+id/user" android:padding="4dp"/>
+								</TableRow>
+								<TableRow android:id="@+id/client_ip_row">
+									<TextView android:text="@string/client_ip" android:padding="4dp"/>
+									<TextView android:id="@+id/client_ip" android:padding="4dp"/>
+								</TableRow>
+								<TableRow android:id="@+id/server_host_row">
+									<TextView android:text="@string/server_host" android:padding="4dp"/>
+									<TextView android:id="@+id/server_host" android:padding="4dp"/>
+								</TableRow>
+								<TableRow android:id="@+id/server_ip_row">
+									<TextView android:text="@string/server_ip" android:padding="4dp"/>
+									<TextView android:id="@+id/server_ip" android:padding="4dp"/>
+								</TableRow>
+								<TableRow android:id="@+id/server_port_row">
+									<TextView android:text="@string/server_port" android:padding="4dp"/>
+									<TextView android:id="@+id/server_port" android:padding="4dp"/>
+								</TableRow>
+								<TableRow android:id="@+id/server_proto_row">
+									<TextView android:text="@string/server_proto" android:padding="4dp"/>
+									<TextView android:id="@+id/server_proto" android:padding="4dp"/>
+								</TableRow>
+							</TableLayout>
+						</LinearLayout>
+					</LinearLayout>
+
+					<TextView
+						android:id="@+id/details_more_less"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:layout_gravity="center_horizontal"
+						android:paddingTop="8dp"
+						android:textColor="#8080ff"/>
+				</LinearLayout>
+			</LinearLayout>
+
+		</LinearLayout>
+	</ScrollView>
+
+	<com.google.android.material.bottomappbar.BottomAppBar
+		android:id="@+id/bottom_bar"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_gravity="bottom"
+		android:backgroundTint="#FF070707"
+		app:fabCradleMargin="14dp"
+		app:fabCradleRoundedCornerRadius="16dp"
+		app:fabCradleVerticalOffset="4dp"
+		app:fabAlignmentMode="end"
+		app:menu="@menu/bottom_menu"/>
+
+	<com.google.android.material.floatingactionbutton.FloatingActionButton
+		android:id="@+id/fab_menu"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:contentDescription="เมนู"
+		android:src="@android:drawable/ic_input_add"
+		app:backgroundTint="#FFF00E3D"
+		app:tint="#FFFFFF"
+		app:layout_anchor="@id/bottom_bar"/>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

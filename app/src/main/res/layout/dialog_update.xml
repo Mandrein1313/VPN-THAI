@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@android:color/white">
+
+    <!-- หัวข้อ -->
+    <TextView
+        android:id="@+id/tv_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="พบอัปเดตใหม่"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="#1B5E20"/>
+
+    <!-- เวอร์ชัน -->
+    <TextView
+        android:id="@+id/tv_version"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textSize="14sp"
+        android:textColor="#666666"/>
+
+    <!-- รายละเอียด -->
+    <TextView
+        android:id="@+id/tv_changelog"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textSize="14sp"
+        android:textColor="#333333"
+        android:lineSpacingExtra="4dp"/>
+
+    <!-- แถบโหลด (ซ่อนตอนแรก) -->
+    <ProgressBar
+        android:id="@+id/progress_update"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:visibility="gone"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:indeterminate="true"/>
+
+    <TextView
+        android:id="@+id/tv_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textSize="13sp"
+        android:textColor="#2E7D32"
+        android:visibility="gone"/>
+
+    <!-- ปุ่ม -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:gravity="end"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp">
+
+        <Button
+            android:id="@+id/btn_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginEnd="8dp"
+            android:text="ยกเลิก"
+            android:textColor="#666666"
+            android:backgroundTint="#EEEEEE"/>
+
+        <Button
+            android:id="@+id/btn_update"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="อัปเดต"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#2E7D32"/>
+    </LinearLayout>
+</LinearLayout>
