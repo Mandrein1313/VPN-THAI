@@ -425,28 +425,32 @@ private void showUpdateDialog(Context context, String version, String changelog,
             }
         }
 
-        private boolean isNewVersionAvailable(String newVersion, String currentVersion) {
-            String[] newParts = newVersion.split("\\.");
-            String[] currentParts = currentVersion.split("\\.");
-            int length = Math.max(newParts.length, currentParts.length);
+private boolean isNewVersionAvailable(String newVersion, String currentVersion) {
+    // ป้องกัน Crash กรณีค่าที่ส่งเข้ามาเป็น null หรือค่าว่าง
+    if (newVersion == null || newVersion.trim().isEmpty()) return false;
+    if (currentVersion == null || currentVersion.trim().isEmpty()) return true; // ถ้าในเครื่องยังไม่มีเวอร์ชัน ให้ถือว่าต้องอัปเดต
 
-            for (int i = 0; i < length; i++) {
-                int v1 = i < newParts.length ? parseVersionPart(newParts[i]) : 0;
-                int v2 = i < currentParts.length ? parseVersionPart(currentParts[i]) : 0;
-                if (v1 < v2) return false;
-                if (v1 > v2) return true;
-            }
-            return false;
-        }
+    String[] newParts = newVersion.trim().split("\\.");
+    String[] currentParts = currentVersion.trim().split("\\.");
+    int length = Math.max(newParts.length, currentParts.length);
 
-        private int parseVersionPart(String part) {
-            try {
-                return Integer.parseInt(part.replaceAll("[^0-9]", ""));
-            } catch (Exception e) {
-                return 0;
-            }
-        }
-
+    for (int i = 0; i < length; i++) {
+        int v1 = i < newParts.length ? parseVersionPart(newParts[i]) : 0;
+        int v2 = i < currentParts.length ? parseVersionPart(currentParts[i]) : 0;
+        if (v1 < v2) return false;
+        if (v1 > v2) return true;
+    }
+    return false;
+}
+private int parseVersionPart(String part) {
+    try {
+        // ดึงเฉพาะตัวเลขออกมา เผื่อมีตัวอักษร เช่น "1.0.0-beta"
+        String numberOnly = part.replaceAll("[^0-9]", "");
+        return numberOnly.isEmpty() ? 0 : Integer.parseInt(numberOnly);
+    } catch (NumberFormatException e) {
+        return 0;
+    }
+}
         public String readFileToString(File file) {
             StringBuilder builder = new StringBuilder();
             try (InputStream in = new FileInputStream(file);
