@@ -876,7 +876,8 @@ private void showLoginDialog() {
         }
     }
     if (this.pwds != null) {
-        String savedPass = this.pwds.get_string("password");
+        // แก้จาก get_string เป็น get(...)
+        String savedPass = this.pwds.get("password");
         if (savedPass != null) {
             etPassword.setText(savedPass);
         }
@@ -899,7 +900,8 @@ private void showLoginDialog() {
             this.prefs.set_string("username", user);
         }
         if (this.pwds != null) {
-            this.pwds.set_string("password", pass);
+            // แก้จาก set_string เป็น set(...)
+            this.pwds.set("password", pass);
         }
         
         android.widget.Toast.makeText(this, "บันทึกเรียบร้อย", android.widget.Toast.LENGTH_SHORT).show();
@@ -915,7 +917,8 @@ private void showLoginDialog() {
             this.prefs.set_string("username", user);
         }
         if (this.pwds != null) {
-            this.pwds.set_string("password", pass);
+            // แก้จาก set_string เป็น set(...)
+            this.pwds.set("password", pass);
         }
         
         dialog.dismiss();
@@ -929,9 +932,6 @@ private void showLoginDialog() {
 
     dialog.show();
 }
-
-
-
 
     protected void ok_dialog(String title, String message) {
         ok_dialog(title, message, null);
