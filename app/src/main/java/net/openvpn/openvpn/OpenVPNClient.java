@@ -1404,7 +1404,7 @@ private void showLoginDialog() {
                     if (this.password_group != null) this.password_group.setVisibility(View.GONE);
                 } else {
                     boolean is_pwd_save;
-                    String saved_pwd;
+                    String saved_pwd = null; // 🛠️ กำหนดค่าเริ่มต้นเป็น null ป้องกัน error: variable saved_pwd might not have been initialized
                     boolean udef = prof.userlocked_username_defined();
                     boolean autologin = prof.get_autologin();
                     boolean pk_pwd_req = prof.get_private_key_password_required();
@@ -1542,7 +1542,6 @@ private void showLoginDialog() {
         }
     }
 
-    
     private void set_enabled(EditText editText, boolean state) {
         editText.setEnabled(state);
         editText.setFocusable(state);
