@@ -199,19 +199,29 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         pref = PreferenceManager.getDefaultSharedPreferences(this);
         editor = pref.edit();
         
-if (this.prefs.get_boolean("ui_dark_theme", RETAIN_AUTH)) {
-    setCurrentTheme(com.google.android.material.R.style.Theme_MaterialComponents_NoActionBar);
-} else {
-    setCurrentTheme(com.google.android.material.R.style.Theme_MaterialComponents_Light_NoActionBar);
-}
+        // 1. ตั้งค่า Theme หลักก่อน
+        if (this.prefs.get_boolean("ui_dark_theme", RETAIN_AUTH)) {
+            setCurrentTheme(com.google.android.material.R.style.Theme_MaterialComponents_NoActionBar);
+        } else {
+            setCurrentTheme(com.google.android.material.R.style.Theme_MaterialComponents_Light_NoActionBar);
+        }
 
-setContentView(R.layout.form);
+        setContentView(R.layout.form);
 
-if (getSupportActionBar() != null) {
-    getSupportActionBar().hide();
-}
+        // 🖤 2. เพิ่มโค้ดส่วนนี้เพื่อบังคับ Status Bar บนสุดให้เป็นสีดำครับ
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            android.view.Window window = getWindow();
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+            window.setStatusBarColor(android.graphics.Color.BLACK);
+        }
 
-load_ui_elements();
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().hide();
+        }
+
+        load_ui_elements();
+        
         // ตัวจัดการระบบอัปเดตเวอร์ชันใหม่
         updateManager = new UpdateManager(this);
         updateManager.checkUpdateAuto(); // สั่งตรวจเช็กอัปเดตอัตโนมัติขณะเริ่มแอป
@@ -220,6 +230,7 @@ load_ui_elements();
         warn_app_expiration(this.prefs);
         new AppRate(this).setMinDaysUntilPrompt(14).setMinLaunchesUntilPrompt(10).init();
     }
+
 
     // ==========================================
     // คลาสระบบจัดการอัปเดตใหม่ (UpdateManager)
