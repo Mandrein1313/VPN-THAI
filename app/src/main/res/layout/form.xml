@@ -317,7 +317,7 @@
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
 		android:layout_gravity="bottom"
-		android:backgroundTint="#FF00FFF8"
+		android:backgroundTint="#FF070707"
 		app:fabCradleMargin="14dp"
 		app:fabCradleRoundedCornerRadius="16dp"
 		app:fabCradleVerticalOffset="4dp"
