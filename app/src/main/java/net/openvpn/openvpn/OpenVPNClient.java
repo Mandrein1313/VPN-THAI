@@ -1409,6 +1409,8 @@ private void showLoginDialog() {
                     boolean autologin = prof.get_autologin();
                     boolean pk_pwd_req = prof.get_private_key_password_required();
                     boolean dynamic_challenge = prof.is_dynamic_challenge();
+                    
+                    // จัดการค่า Username เบื้องหลัง
                     if ((!autologin || udef) && !dynamic_challenge) {
                         if (udef) {
                             if (this.username_edit != null) {
@@ -1421,15 +1423,13 @@ private void showLoginDialog() {
                                 String pref_username = this.prefs.get_string_by_profile(prof.get_name(), "username");
                                 if (pref_username != null) {
                                     this.username_edit.setText(pref_username);
-                                } else {
-                                    focus = this.username_edit;
                                 }
                             }
                         }
-                        if (this.username_group != null) this.username_group.setVisibility(View.VISIBLE);
-                    } else {
-                        if (this.username_group != null) this.username_group.setVisibility(View.GONE);
                     }
+                    // 🛠️ บังคับซ่อน username_group บนหน้าจอหลักเสมอ
+                    if (this.username_group != null) this.username_group.setVisibility(View.GONE);
+
                     if (pk_pwd_req) {
                         is_pwd_save = this.prefs.get_boolean_by_profile(prof.get_name(), "pk_password_save", RETAIN_AUTH);
                         saved_pwd = null;
@@ -1446,13 +1446,11 @@ private void showLoginDialog() {
                     } else {
                         if (this.pk_password_group != null) this.pk_password_group.setVisibility(View.GONE);
                     }
-                    if (autologin || dynamic_challenge) {
-                        if (this.password_group != null) this.password_group.setVisibility(View.GONE);
-                    } else {
+
+                    // จัดการค่า Password เบื้องหลัง
+                    if (!autologin && !dynamic_challenge) {
                         boolean is_auth_pw_save = prof.get_allow_password_save();
                         is_pwd_save = (is_auth_pw_save && this.prefs.get_boolean_by_profile(prof.get_name(), "auth_password_save", RETAIN_AUTH));
-                        saved_pwd = null;
-                        if (this.password_group != null) this.password_group.setVisibility(View.VISIBLE);
                         if (this.password_save_checkbox != null) {
                             this.password_save_checkbox.setEnabled(is_auth_pw_save);
                             this.password_save_checkbox.setChecked(is_pwd_save);
@@ -1462,10 +1460,10 @@ private void showLoginDialog() {
                         }
                         if (saved_pwd != null && this.password_edit != null) {
                             this.password_edit.setText(saved_pwd);
-                        } else if (focus == null) {
-                            focus = this.password_edit;
                         }
                     }
+                    // 🛠️ บังคับซ่อน password_group บนหน้าจอหลักเสมอ
+                    if (this.password_group != null) this.password_group.setVisibility(View.GONE);
                 }
                 if (active || prof.get_autologin() || !prof.challenge_defined()) {
                     if (this.cr_group != null) this.cr_group.setVisibility(View.GONE);
@@ -1543,6 +1541,7 @@ private void showLoginDialog() {
             start_connect();
         }
     }
+
     
     private void set_enabled(EditText editText, boolean state) {
         editText.setEnabled(state);
