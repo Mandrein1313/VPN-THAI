@@ -132,6 +132,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
     private View stats_group;
     
     
+    
     private final Handler stats_timer_handler = new Handler(Looper.getMainLooper());
     private final Runnable stats_timer_task = new Runnable() {
         public void run() {
@@ -1484,86 +1485,29 @@ private void showSuccessAndRestartDialog() {
             }
         }
     }
+    
+private static final int REQUEST_IMPORT_PROFILE_SAF = 1002;
+private static final int REQUEST_IMPORT_PKCS12_SAF = 1003;
+    
 
-    private void request_file_selection_dialog(int requestCode) {
-        if (ContextCompat.checkSelfPermission(this, "android.permission.READ_EXTERNAL_STORAGE") == 0) {
-            raise_file_selection_dialog(requestCode);
-            return;
-        }
-        String[] perms = new String[]{"android.permission.READ_EXTERNAL_STORAGE"};
-        ActivityCompat.requestPermissions(this, perms, requestCode);
-    }
+private void request_file_selection_dialog(int requestCode) {
+    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+    intent.addCategory(Intent.CATEGORY_OPENABLE);
+    intent.setType("*/*");
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        int id = item.getItemId();
-        if (id == R.id.about_menu) {
-            startActivityForResult(new Intent(this, OpenVPNAbout.class), 0);
-            return true;
-        } else if (id == R.id.help_menu) {
-            startActivityForResult(new Intent(this, OpenVPNHelp.class), 0);
-            return true;
-        } else if (id == R.id.import_private_tunnel_profile) {
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(getText(R.string.privatetunnel_import).toString())));
-            return true;
-        } else if (id == R.id.import_profile_remote) {
-            startActivityForResult(new Intent(this, OpenVPNImportProfile.class), 0);
-            return true;
-        } else if (id == R.id.import_profile) {
-            request_file_selection_dialog(S_ONSTART_CALLED);
-            return true;
-        } else if (id == R.id.import_pkcs12) {
-            request_file_selection_dialog(REQUEST_IMPORT_PKCS12);
-            return true;
-        } else if (id == R.id.preferences) {
-            startActivityForResult(new Intent(this, OpenVPNPrefs.class), 0);
-            return true;
-        } else if (id == R.id.add_proxy) {
-            startActivityForResult(new Intent(this, OpenVPNAddProxy.class), 0);
-            return true;
-        } else if (id == R.id.add_shortcut_connect) {
-            startActivityForResult(new Intent(this, OpenVPNAddShortcut.class), 0);
-            return true;
-        } else if (id == R.id.add_shortcut_disconnect) {
-            createDisconnectShortcut(resString(R.string.disconnect_shortcut_title));
-            return true;
-        } else if (id == R.id.add_shortcut_app) {
-            createAppShortcut(resString(R.string.app_shortcut_title));
-            return true;
-        } else if (id == R.id.show_log) {
-            startActivityForResult(new Intent(this, OpenVPNLog.class), 0);
-            return true;
-        } else if (id == R.id.show_raw_stats) {
-            startActivityForResult(new Intent(this, OpenVPNStats.class), 0);
-            return true;
-        } else if (id == R.id.forget_creds) {
-            forget_creds_with_confirm();
-            return true;
-        } else if (id == R.id.exit_partial) {
-            finish();
-            return true;
-        } else if (id == R.id.exit_full) {
-            this.stop_service_on_client_exit = true;
-            finish();
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
+    if (requestCode == S_ONSTART_CALLED || requestCode == REQUEST_IMPORT_PROFILE) {
+        String[] mimeTypes = {
+                "application/x-openvpn-profile",
+                "text/plain",
+                "application/octet-stream",
+                "*/*"
+        };
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
+        startActivityForResult(intent, REQUEST_IMPORT_PROFILE_SAF);
+    } else if (requestCode == REQUEST_IMPORT_PKCS12) {
+        startActivityForResult(intent, REQUEST_IMPORT_PKCS12_SAF);
     }
-
-    @Override
-    public void onClick(View v) {
-        cancel_ui_reset();
-        this.autostart_profile_name = null;
-        this.finish_on_connect = FinishOnConnect.DISABLED;
-        int viewid = v.getId();
-        if (viewid == R.id.connect) {
-            start_connect();
-        } else if (viewid == R.id.disconnect) {
-            submitDisconnectIntent(RETAIN_AUTH);
-        } else if (viewid == R.id.profile_edit || viewid == R.id.proxy_edit) {
-            openContextMenu(v);
-        }
-    }
+}
 
     private void start_connect() {
         cancel_ui_reset();
@@ -1903,54 +1847,163 @@ private void showSuccessAndRestartDialog() {
         submitConnectIntent(profile_name, server, vpn_proto, ipv6, conn_timeout, username, password, is_auth_pwd_save, pk_password, response, epki_alias, compression_mode, proxy_name, null, null, true, get_gui_version(app_name));
     }
 
-    private void import_profile(String path) {
-        submitImportProfileViaPathIntent(path);
-    }
+private void import_profile(String path) {
+    submitImportProfileViaPathIntent(path);
+}
 
-    @Override
-    protected void onActivityResult(int request, int result, Intent data) {
-        Log.d(TAG, String.format("CLI: onActivityResult request=%d result=%d", request, result));
-        String path;
-        switch (request) {
-            case S_BIND_CALLED:
-                if (result == RESULT_OK) {
-                    resolve_epki_alias_then_connect();
+@Override
+protected void onActivityResult(int request, int result, Intent data) {
+    Log.d(TAG, String.format("CLI: onActivityResult request=%d result=%d", request, result));
+    String path;
+    switch (request) {
+        case S_BIND_CALLED:
+            if (result == RESULT_OK) {
+                resolve_epki_alias_then_connect();
+                return;
+            } else if (result != RESULT_CANCELED) {
+                return;
+            } else {
+                if (this.finish_on_connect == FinishOnConnect.ENABLED) {
+                    finish();
                     return;
-                } else if (result != RESULT_CANCELED) {
+                } else if (this.finish_on_connect == FinishOnConnect.ENABLED_ACROSS_ONSTART) {
+                    this.finish_on_connect = FinishOnConnect.ENABLED;
+                    start_connect();
                     return;
                 } else {
-                    if (this.finish_on_connect == FinishOnConnect.ENABLED) {
-                        finish();
-                        return;
-                    } else if (this.finish_on_connect == FinishOnConnect.ENABLED_ACROSS_ONSTART) {
-                        this.finish_on_connect = FinishOnConnect.ENABLED;
-                        start_connect();
-                        return;
-                    } else {
-                        return;
+                    return;
+                }
+            }
+
+        // ===== ใหม่: นำเข้า .ovpn จากตัวเลือกไฟล์ระบบ (SAF) =====
+        case REQUEST_IMPORT_PROFILE_SAF:
+            if (result == RESULT_OK && data != null && data.getData() != null) {
+                importProfileFromUri(data.getData());
+            }
+            return;
+
+        // ===== ใหม่: นำเข้า PKCS12 จากตัวเลือกไฟล์ระบบ (SAF) =====
+        case REQUEST_IMPORT_PKCS12_SAF:
+            if (result == RESULT_OK && data != null && data.getData() != null) {
+                path = copyUriToCache(data.getData(), "import.p12");
+                if (path != null) {
+                    import_pkcs12(path);
+                } else {
+                    Toast.makeText(this, "ไม่สามารถอ่านไฟล์ PKCS12 ได้", Toast.LENGTH_LONG).show();
+                }
+            }
+            return;
+
+        // ===== เดิม: FileDialog (เก็บไว้ได้) =====
+        case S_ONSTART_CALLED:
+            if (result == RESULT_OK && data != null) {
+                path = data.getStringExtra(FileDialog.RESULT_PATH);
+                Log.d(TAG, String.format("CLI: IMPORT_PROFILE: %s", path));
+                if (path != null) {
+                    import_profile(path);
+                }
+                return;
+            }
+            return;
+
+        case REQUEST_IMPORT_PKCS12:
+            if (result == RESULT_OK && data != null) {
+                path = data.getStringExtra(FileDialog.RESULT_PATH);
+                Log.d(TAG, String.format("CLI: IMPORT_PKCS12: %s", path));
+                if (path != null) {
+                    import_pkcs12(path);
+                }
+                return;
+            }
+            return;
+
+        default:
+            super.onActivityResult(request, result, data);
+            return;
+    }
+}
+
+private void importProfileFromUri(Uri uri) {
+    try {
+        String filename = "imported.ovpn";
+        try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                int idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0) {
+                    String name = c.getString(idx);
+                    if (name != null && name.length() > 0) {
+                        filename = name;
                     }
                 }
-            case S_ONSTART_CALLED:
-                if (result == RESULT_OK && data != null) {
-                    path = data.getStringExtra(FileDialog.RESULT_PATH);
-                    Log.d(TAG, String.format("CLI: IMPORT_PROFILE: %s", path));
-                    import_profile(path);
-                    return;
-                }
-                return;
-            case REQUEST_IMPORT_PKCS12:
-                if (result == RESULT_OK && data != null) {
-                    path = data.getStringExtra(FileDialog.RESULT_PATH);
-                    Log.d(TAG, String.format("CLI: IMPORT_PKCS12: %s", path));
-                    import_pkcs12(path);
-                    return;
-                }
-                return;
-            default:
-                super.onActivityResult(request, result, data);
-                return;
+            }
         }
+
+        filename = new java.io.File(filename).getName();
+        if (!filename.toLowerCase(java.util.Locale.US).endsWith(".ovpn")) {
+            filename = filename + ".ovpn";
+        }
+
+        java.io.InputStream in = getContentResolver().openInputStream(uri);
+        if (in == null) {
+            throw new java.io.IOException("openInputStream returned null");
+        }
+
+        StringBuilder sb = new StringBuilder();
+        try (java.io.Reader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8))) {
+            char[] buf = new char[8192];
+            int n;
+            while ((n = reader.read(buf)) > 0) {
+                sb.append(buf, 0, n);
+            }
+        }
+
+        String content = sb.toString();
+        if (content.trim().isEmpty()) {
+            Toast.makeText(this, "ไฟล์ว่างหรืออ่านไม่ได้", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        submitImportProfileIntent(content, filename, true);
+        Toast.makeText(this, "กำลังนำเข้า: " + filename, Toast.LENGTH_SHORT).show();
+
+    } catch (Exception e) {
+        Log.e(TAG, "importProfileFromUri failed", e);
+        Toast.makeText(this, "นำเข้าไม่สำเร็จ: " + e.getMessage(), Toast.LENGTH_LONG).show();
     }
+}
+
+private String copyUriToCache(Uri uri, String fallbackName) {
+    try {
+        String name = fallbackName;
+        try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                int idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0) {
+                    String n = c.getString(idx);
+                    if (n != null && !n.isEmpty()) name = n;
+                }
+            }
+        }
+        name = new java.io.File(name).getName();
+        java.io.File out = new java.io.File(getCacheDir(), name);
+        try (java.io.InputStream in = getContentResolver().openInputStream(uri);
+             java.io.OutputStream os = new java.io.FileOutputStream(out)) {
+            if (in == null) return null;
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                os.write(buf, 0, n);
+            }
+            os.flush();
+        }
+        return out.getAbsolutePath();
+    } catch (Exception e) {
+        Log.e(TAG, "copyUriToCache failed", e);
+        return null;
+    }
+}
+
 
     private TextView last_visible_edittext() {
         for (int i = 0; i < this.textgroups.length; i++) {

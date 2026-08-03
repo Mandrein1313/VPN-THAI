@@ -64,6 +64,6 @@ dependencies {
     
     implementation 'androidx.coordinatorlayout:coordinatorlayout:1.2.0'
     
-    // รวมไฟล์ jar ในโฟลเดอร์ libs ทั้งหมด (ซึ่งมี zip4j อยู่แล้ว)
+    )
     implementation fileTree(include: ['*.jar'], dir: 'libs')
 }
