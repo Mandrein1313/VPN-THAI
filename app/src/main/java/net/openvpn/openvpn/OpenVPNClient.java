@@ -1487,28 +1487,38 @@ private void showSuccessAndRestartDialog() {
     }
     
 private static final int REQUEST_IMPORT_PROFILE_SAF = 1002;
-private static final int REQUEST_IMPORT_PKCS12_SAF = 1003;
-    
+    private static final int REQUEST_IMPORT_PKCS12_SAF = 1003;
 
-private void request_file_selection_dialog(int requestCode) {
-    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-    intent.addCategory(Intent.CATEGORY_OPENABLE);
-    intent.setType("*/*");
+    private void request_file_selection_dialog(int requestCode) {
+        Toast.makeText(this, "กำลังเปิดตัวเลือกไฟล์...", Toast.LENGTH_SHORT).show();
 
-    if (requestCode == S_ONSTART_CALLED || requestCode == REQUEST_IMPORT_PROFILE) {
-        String[] mimeTypes = {
-                "application/x-openvpn-profile",
-                "text/plain",
-                "application/octet-stream",
-                "*/*"
-        };
-        intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
-        startActivityForResult(intent, REQUEST_IMPORT_PROFILE_SAF);
-    } else if (requestCode == REQUEST_IMPORT_PKCS12) {
-        startActivityForResult(intent, REQUEST_IMPORT_PKCS12_SAF);
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+        int safRequest;
+        if (requestCode == S_ONSTART_CALLED || requestCode == REQUEST_IMPORT_PROFILE) {
+            safRequest = REQUEST_IMPORT_PROFILE_SAF;
+        } else if (requestCode == REQUEST_IMPORT_PKCS12) {
+            safRequest = REQUEST_IMPORT_PKCS12_SAF;
+        } else {
+            Toast.makeText(this, "requestCode ไม่รู้จัก: " + requestCode, Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        try {
+            startActivityForResult(Intent.createChooser(intent, "เลือกไฟล์"), safRequest);
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(this, "ไม่พบแอปเลือกไฟล์", Toast.LENGTH_LONG).show();
+            Log.e(TAG, "No file picker", e);
+        } catch (Exception e) {
+            Toast.makeText(this, "เปิดไฟล์ล้มเหลว: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Log.e(TAG, "file picker error", e);
+        }
     }
-}
-@Override
+
+    @Override
     public void onClick(View v) {
         cancel_ui_reset();
         this.autostart_profile_name = null;
@@ -2171,13 +2181,11 @@ if (id == R.id.bottom_home) {
             });
         }
 
-        View fabMenu = findViewById(R.id.fab_menu);
+View fabMenu = findViewById(R.id.fab_menu);
         if (fabMenu != null) {
             fabMenu.setOnClickListener(v -> {
-                android.widget.PopupMenu popup = new android.widget.PopupMenu(this, v);
-                popup.getMenuInflater().inflate(R.menu.menu, popup.getMenu());
-                popup.setOnMenuItemClickListener(this::onOptionsItemSelected);
-                popup.show();
+                // ทดสอบ: กดปุ่ม + แล้วเปิดเลือกไฟล์ .ovpn ทันที
+                request_file_selection_dialog(S_ONSTART_CALLED);
             });
         }
 
