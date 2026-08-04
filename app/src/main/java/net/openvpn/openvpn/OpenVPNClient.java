@@ -1517,8 +1517,7 @@ private static final int REQUEST_IMPORT_PROFILE_SAF = 1002;
             Log.e(TAG, "file picker error", e);
         }
     }
-
-@Override
+    @Override
 public boolean onOptionsItemSelected(MenuItem item) {
     int id = item.getItemId();
 
@@ -2250,4 +2249,13 @@ if (fabMenu != null) {
         popup.setOnMenuItemClickListener(this::onOptionsItemSelected);
         popup.show();
     });
+}
+
+        if (this.button_group != null) {
+            this.button_group.setVisibility(View.VISIBLE);
+        }
+        if (this.connect_button != null) {
+            this.connect_button.setVisibility(View.VISIBLE);
+        }
+    }
 }
