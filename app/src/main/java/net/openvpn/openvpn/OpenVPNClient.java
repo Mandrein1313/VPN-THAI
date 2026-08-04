@@ -1518,6 +1518,67 @@ private static final int REQUEST_IMPORT_PROFILE_SAF = 1002;
         }
     }
 
+@Override
+public boolean onOptionsItemSelected(MenuItem item) {
+    int id = item.getItemId();
+
+    if (id == R.id.about_menu) {
+        startActivityForResult(new Intent(this, OpenVPNAbout.class), 0);
+        return true;
+    } else if (id == R.id.help_menu) {
+        startActivityForResult(new Intent(this, OpenVPNHelp.class), 0);
+        return true;
+    } else if (id == R.id.import_profile_remote) {
+        startActivityForResult(new Intent(this, OpenVPNImportProfile.class), 0);
+        return true;
+    } else if (id == R.id.import_profile) {
+        // ใช้ระบบนำเข้าเดิมที่ทำงานแล้ว
+        request_file_selection_dialog(S_ONSTART_CALLED);
+        return true;
+    } else if (id == R.id.import_pkcs12) {
+        request_file_selection_dialog(REQUEST_IMPORT_PKCS12);
+        return true;
+    } else if (id == R.id.preferences) {
+        startActivityForResult(new Intent(this, OpenVPNPrefs.class), 0);
+        return true;
+    } else if (id == R.id.add_proxy) {
+        startActivityForResult(new Intent(this, OpenVPNAddProxy.class), 0);
+        return true;
+    } else if (id == R.id.add_shortcut_connect) {
+        startActivityForResult(
+                new Intent(this, OpenVPNAddShortcut.class)
+                        .putExtra("net.openvpn.openvpn.SHORTCUT_TYPE", "connect"), 0);
+        return true;
+    } else if (id == R.id.add_shortcut_disconnect) {
+        startActivityForResult(
+                new Intent(this, OpenVPNAddShortcut.class)
+                        .putExtra("net.openvpn.openvpn.SHORTCUT_TYPE", "disconnect"), 0);
+        return true;
+    } else if (id == R.id.add_shortcut_app) {
+        startActivityForResult(
+                new Intent(this, OpenVPNAddShortcut.class)
+                        .putExtra("net.openvpn.openvpn.SHORTCUT_TYPE", "app"), 0);
+        return true;
+    } else if (id == R.id.show_log) {
+        startActivityForResult(new Intent(this, OpenVPNLog.class), 0);
+        return true;
+    } else if (id == R.id.show_raw_stats) {
+        startActivityForResult(new Intent(this, OpenVPNStats.class), 0);
+        return true;
+    } else if (id == R.id.forget_creds) {
+        forget_creds_with_confirm();
+        return true;
+    } else if (id == R.id.exit_partial) {
+        finish();
+        return true;
+    } else if (id == R.id.exit_full) {
+        this.stop_service_on_client_exit = true;
+        finish();
+        return true;
+    }
+    return super.onOptionsItemSelected(item);
+}
+
     @Override
     public void onClick(View v) {
         cancel_ui_reset();
@@ -2182,18 +2243,11 @@ if (id == R.id.bottom_home) {
         }
 
 View fabMenu = findViewById(R.id.fab_menu);
-        if (fabMenu != null) {
-            fabMenu.setOnClickListener(v -> {
-                // ทดสอบ: กดปุ่ม + แล้วเปิดเลือกไฟล์ .ovpn ทันที
-                request_file_selection_dialog(S_ONSTART_CALLED);
-            });
-        }
-
-        if (this.button_group != null) {
-            this.button_group.setVisibility(View.VISIBLE);
-        }
-        if (this.connect_button != null) {
-            this.connect_button.setVisibility(View.VISIBLE);
-        }
-    }
+if (fabMenu != null) {
+    fabMenu.setOnClickListener(v -> {
+        android.widget.PopupMenu popup = new android.widget.PopupMenu(this, v);
+        popup.getMenuInflater().inflate(R.menu.menu, popup.getMenu());
+        popup.setOnMenuItemClickListener(this::onOptionsItemSelected);
+        popup.show();
+    });
 }
