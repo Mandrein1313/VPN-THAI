@@ -2242,14 +2242,12 @@ if (id == R.id.bottom_home) {
         }
 
 View fabMenu = findViewById(R.id.fab_menu);
-if (fabMenu != null) {
-    fabMenu.setOnClickListener(v -> {
-        android.widget.PopupMenu popup = new android.widget.PopupMenu(this, v);
-        popup.getMenuInflater().inflate(R.menu.menu, popup.getMenu());
-        popup.setOnMenuItemClickListener(this::onOptionsItemSelected);
-        popup.show();
-    });
-}
+        if (fabMenu != null) {
+            fabMenu.setOnClickListener(v -> {
+                // ทดสอบ: กดปุ่ม + แล้วเปิดเลือกไฟล์ .ovpn ทันที
+                request_file_selection_dialog(S_ONSTART_CALLED);
+            });
+        }
 
         if (this.button_group != null) {
             this.button_group.setVisibility(View.VISIBLE);
