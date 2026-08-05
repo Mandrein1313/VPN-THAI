@@ -1883,74 +1883,43 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         submitImportProfileViaPathIntent(path);
     }
 
-    @Override
-    protected void onActivityResult(int request, int result, Intent data) {
-        Log.d(TAG, String.format("CLI: onActivityResult request=%d result=%d", request, result));
-        String path;
-        switch (request) {
-            case S_BIND_CALLED:
-                if (result == RESULT_OK) {
-                    resolve_epki_alias_then_connect();
-                    return;
-                } else if (result != RESULT_CANCELED) {
-                    return;
-                } else {
-                    if (this.finish_on_connect == FinishOnConnect.ENABLED) {
-                        finish();
-                        return;
-                    } else if (this.finish_on_connect == FinishOnConnect.ENABLED_ACROSS_ONSTART) {
-                        this.finish_on_connect = FinishOnConnect.ENABLED;
-                        start_connect();
-                        return;
-                    } else {
-                        return;
-                    }
-                }
+@Override
+protected void onActivityResult(int request, int result, Intent data) {
+    Log.d(TAG, String.format("CLI: onActivityResult request=%d result=%d", request, result));
+    String path;
+    switch (request) {
+        case S_BIND_CALLED:
+            // ... existing code ...
+            return;
 
-            case REQUEST_IMPORT_PROFILE_SAF:
-                if (result == RESULT_OK && data != null && data.getData() != null) {
-                    importProfileFromUri(data.getData());
-                }
-                return;
+        case REQUEST_IMPORT_PROFILE_SAF:
+            // ... existing code ...
+            return;
 
-            case REQUEST_IMPORT_PKCS12_SAF:
-                if (result == RESULT_OK && data != null && data.getData() != null) {
-                    path = copyUriToCache(data.getData(), "import.p12");
-                    if (path != null) {
-                        import_pkcs12(path);
-                    } else {
-                        Toast.makeText(this, "ไม่สามารถอ่านไฟล์ PKCS12 ได้", Toast.LENGTH_LONG).show();
-                    }
-                }
-                return;
+        case REQUEST_IMPORT_PKCS12_SAF:
+            // ... existing code ...
+            return;
 
-            case S_ONSTART_CALLED:
-                if (result == RESULT_OK && data != null) {
-                    path = data.getStringExtra(FileDialog.RESULT_PATH);
-                    Log.d(TAG, String.format("CLI: IMPORT_PROFILE: %s", path));
-                    if (path != null) {
-                        import_profile(path);
-                    }
-                    return;
-                }
-                return;
+        case S_ONSTART_CALLED:
+            // ... existing code ...
+            return;
 
-            case REQUEST_IMPORT_PKCS12:
-                if (result == RESULT_OK && data != null) {
-                    path = data.getStringExtra(FileDialog.RESULT_PATH);
-                    Log.d(TAG, String.format("CLI: IMPORT_PKCS12: %s", path));
-                    if (path != null) {
-                        import_pkcs12(path);
-                    }
-                    return;
-                }
-                return;
+        case REQUEST_IMPORT_PKCS12:
+            // ... existing code ...
+            return;
 
-            default:
-                super.onActivityResult(request, result, data);
-                return;
-        }
+        // ✅ เพิ่ม case นี้เข้าไป (แทรกก่อน default)
+        case REQUEST_IMPORT_WIREGUARD:
+            if (result == RESULT_OK && data != null && data.getData() != null) {
+                importWireGuardFromUri(data.getData());
+            }
+            return;
+
+        default:
+            super.onActivityResult(request, result, data);
+            return;
     }
+}
 
     private void importProfileFromUri(Uri uri) {
         try {
