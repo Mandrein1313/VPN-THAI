@@ -16,6 +16,7 @@ import net.openvpn.openvpn.ProxyList.Item;
 
 public class OpenVPNAddProxy extends OpenVPNClientBase implements OnClickListener, OnEditorActionListener {
     private static final String TAG = "OpenVPNAddProxy";
+
     CheckBox allow_cleartext_auth_checkbox;
     Button cancel_button;
     EditText friendly_name_edit;
@@ -26,23 +27,39 @@ public class OpenVPNAddProxy extends OpenVPNClientBase implements OnClickListene
     Button save_button;
     TextView title_textview;
 
+    EditText username_edit;
+    EditText password_edit;
+    EditText user_agent_edit;
+
+    @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.add_proxy);
         this.prefs = new PrefUtil(PreferenceManager.getDefaultSharedPreferences(this));
+
         this.title_textview = (TextView) findViewById(R.id.proxy_title);
         this.friendly_name_edit = (EditText) findViewById(R.id.proxy_friendly_name);
         this.host_edit = (EditText) findViewById(R.id.proxy_host);
         this.port_edit = (EditText) findViewById(R.id.proxy_port);
+        this.username_edit = (EditText) findViewById(R.id.proxy_username);
+        this.password_edit = (EditText) findViewById(R.id.proxy_password);
+        this.user_agent_edit = (EditText) findViewById(R.id.proxy_user_agent);
         this.allow_cleartext_auth_checkbox = (CheckBox) findViewById(R.id.proxy_allow_cleartext_auth_checkbox);
         this.save_button = (Button) findViewById(R.id.proxy_save_button);
         this.cancel_button = (Button) findViewById(R.id.proxy_cancel_button);
+
         this.save_button.setOnClickListener(this);
         this.cancel_button.setOnClickListener(this);
-        this.port_edit.setOnEditorActionListener(this);
+        if (this.user_agent_edit != null) {
+            this.user_agent_edit.setOnEditorActionListener(this);
+        } else if (this.port_edit != null) {
+            this.port_edit.setOnEditorActionListener(this);
+        }
+
         doBindService();
     }
 
+    @Override
     public void onClick(View v) {
         Log.d(TAG, "onClick");
         int viewid = v.getId();
@@ -50,16 +67,30 @@ public class OpenVPNAddProxy extends OpenVPNClientBase implements OnClickListene
             ProxyList proxy_list = get_proxy_list();
             if (proxy_list != null) {
                 Item item = new Item();
+
                 String friendly_name = this.friendly_name_edit.getText().toString().trim();
                 if (friendly_name.length() > 0) {
                     item.friendly_name = friendly_name;
                 }
+
                 item.host = this.host_edit.getText().toString().trim();
                 item.port = this.port_edit.getText().toString().trim();
                 item.allow_cleartext_auth = this.allow_cleartext_auth_checkbox.isChecked();
+
+                item.username = this.username_edit != null
+                        ? this.username_edit.getText().toString() : "";
+                item.password = this.password_edit != null
+                        ? this.password_edit.getText().toString() : "";
+                item.user_agent = this.user_agent_edit != null
+                        ? this.user_agent_edit.getText().toString().trim() : "";
+
+                if (item.username.length() > 0 || item.password.length() > 0) {
+                    item.remember_creds = true;
+                }
+
                 if (item.is_valid()) {
                     String name = item.name();
-                    if (!name.equals(this.mod_proxy_name)) {
+                    if (this.mod_proxy_name != null && !name.equals(this.mod_proxy_name)) {
                         proxy_list.remove(this.mod_proxy_name);
                     }
                     proxy_list.put(item);
@@ -78,14 +109,16 @@ public class OpenVPNAddProxy extends OpenVPNClientBase implements OnClickListene
         }
     }
 
+    @Override
     public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-        if (!action_enter(actionId, event) || v != this.port_edit) {
+        if (!action_enter(actionId, event)) {
             return false;
         }
         onClick(this.save_button);
         return true;
     }
 
+    @Override
     protected void onDestroy() {
         Log.d(TAG, "onDestroy");
         stop();
@@ -96,23 +129,35 @@ public class OpenVPNAddProxy extends OpenVPNClientBase implements OnClickListene
         doUnbindService();
     }
 
+    @Override
     protected void post_bind() {
         Intent intent = getIntent();
         if (intent != null) {
             this.mod_proxy_name = intent.getStringExtra("net.openvpn.openvpn.PROXY_NAME");
-            if (this.mod_proxy_name != null) {
+            if (this.mod_proxy_name != null && this.title_textview != null) {
                 this.title_textview.setText(R.string.proxy_title_modify);
             }
             ProxyList proxy_list = get_proxy_list();
             if (this.mod_proxy_name != null && proxy_list != null) {
                 Item item = proxy_list.get(this.mod_proxy_name);
                 if (item != null) {
-                    if (item.friendly_name != null) {
+                    if (item.friendly_name != null && this.friendly_name_edit != null) {
                         this.friendly_name_edit.setText(item.friendly_name);
                     }
-                    this.host_edit.setText(item.host);
-                    this.port_edit.setText(item.port);
-                    this.allow_cleartext_auth_checkbox.setChecked(item.allow_cleartext_auth);
+                    if (this.host_edit != null) this.host_edit.setText(item.host);
+                    if (this.port_edit != null) this.port_edit.setText(item.port);
+                    if (this.allow_cleartext_auth_checkbox != null) {
+                        this.allow_cleartext_auth_checkbox.setChecked(item.allow_cleartext_auth);
+                    }
+                    if (this.username_edit != null) {
+                        this.username_edit.setText(item.username != null ? item.username : "");
+                    }
+                    if (this.password_edit != null) {
+                        this.password_edit.setText(item.password != null ? item.password : "");
+                    }
+                    if (this.user_agent_edit != null) {
+                        this.user_agent_edit.setText(item.user_agent != null ? item.user_agent : "");
+                    }
                 }
             }
         }

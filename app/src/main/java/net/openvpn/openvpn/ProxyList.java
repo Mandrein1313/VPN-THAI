@@ -29,6 +29,7 @@ public class ProxyList {
         public String port = "";
         public boolean remember_creds = false;
         public String username = "";
+        public String user_agent = "";
 
         public String name() {
             if (this.friendly_name != null) {
@@ -61,11 +62,13 @@ public class ProxyList {
                 j.put("port", this.port);
                 j.put("remember_creds", this.remember_creds);
                 j.put("allow_cleartext_auth", this.allow_cleartext_auth);
-                if (!this.remember_creds) {
-                    return j;
+                j.put("user_agent", this.user_agent != null ? this.user_agent : "");
+                if (this.username != null) {
+                    j.put("username", this.username);
                 }
-                j.put("username", this.username);
-                j.put("password", this.password);
+                if (this.password != null) {
+                    j.put("password", this.password);
+                }
                 return j;
             } catch (JSONException e) {
                 Log.e(ProxyList.TAG, "ProxyList.Item.persist", e);
@@ -83,15 +86,11 @@ public class ProxyList {
                 }
                 i.host = j.getString("host");
                 i.port = j.getString("port");
-                i.remember_creds = j.getBoolean("remember_creds");
-                i.allow_cleartext_auth = j.getBoolean("allow_cleartext_auth");
-                if (!j.isNull("username")) {
-                    i.username = j.getString("username");
-                }
-                if (j.isNull("password")) {
-                    return i;
-                }
-                i.password = j.getString("password");
+                i.remember_creds = j.optBoolean("remember_creds", false);
+                i.allow_cleartext_auth = j.optBoolean("allow_cleartext_auth", false);
+                i.user_agent = j.optString("user_agent", "");
+                i.username = j.optString("username", "");
+                i.password = j.optString("password", "");
                 return i;
             } catch (JSONException e) {
                 Log.e(ProxyList.TAG, "ProxyList.Item.unpersist", e);
@@ -172,7 +171,7 @@ public class ProxyList {
 
     public boolean has_saved_creds(String name) {
         Item item = get(name);
-        if (item == null || item.username.length() <= 0) {
+        if (item == null || item.username == null || item.username.length() <= 0) {
             return false;
         }
         return true;
@@ -204,7 +203,12 @@ public class ProxyList {
     public void load() {
         try {
             if (this.backing_file != null) {
-                ProxyList pl = unpersist((JSONObject) new JSONTokener(FileUtil.readFileAppPrivate(this.context, this.backing_file)).nextValue(), this.none_name);
+                ProxyList pl = unpersist(
+                        (JSONObject) new JSONTokener(
+                                FileUtil.readFileAppPrivate(this.context, this.backing_file)
+                        ).nextValue(),
+                        this.none_name
+                );
                 this.list = pl.list;
                 this.enabled_name = pl.enabled_name;
                 this.dirty = false;
@@ -236,10 +240,9 @@ public class ProxyList {
     }
 
     private JSONObject persist() throws JSONException {
-        String e;
         try {
             JSONObject j = new JSONObject();
-            e = get_enabled(false);
+            String e = get_enabled(false);
             if (e != null) {
                 j.put("enabled_name", e);
             }
@@ -267,7 +270,10 @@ public class ProxyList {
             JSONArray ja = j.getJSONArray("list");
             int length = ja.length();
             for (int i = 0; i < length; i++) {
-                pl.put(Item.unpersist(ja.getJSONObject(i)));
+                Item item = Item.unpersist(ja.getJSONObject(i));
+                if (item != null) {
+                    pl.put(item);
+                }
             }
             pl.set_enabled(null);
             return pl;
