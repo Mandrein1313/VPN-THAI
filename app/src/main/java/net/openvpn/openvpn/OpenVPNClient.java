@@ -131,8 +131,6 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
     private View stats_expansion_group;
     private View stats_group;
     
-    
-    
     private final Handler stats_timer_handler = new Handler(Looper.getMainLooper());
     private final Runnable stats_timer_task = new Runnable() {
         public void run() {
@@ -179,11 +177,9 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
     private SharedPreferences.Editor editor;
     private UpdateManager updateManager;
 
-    // รหัสผ่านไฟล์ ZIP ที่คุณตั้งไว้
     public static final String ZIP_PASSWORD = "myvpn123";
 
     public static class Constant {
-        // ลิงก์ Raw ตรงไปยังไฟล์ update.txt โดยต่อเวลาปัจจุบันกันแคช
         public static String getCheckUpdateUrl() {
             return "https://raw.githubusercontent.com/Mandrein1313/vpn-updates/main/update.txt?t=" + System.currentTimeMillis();
         }
@@ -200,7 +196,6 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         pref = PreferenceManager.getDefaultSharedPreferences(this);
         editor = pref.edit();
         
-        // 1. ตั้งค่า Theme หลักก่อน
         if (this.prefs.get_boolean("ui_dark_theme", RETAIN_AUTH)) {
             setCurrentTheme(com.google.android.material.R.style.Theme_MaterialComponents_NoActionBar);
         } else {
@@ -209,7 +204,6 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
 
         setContentView(R.layout.form);
 
-        // 🖤 2. เพิ่มโค้ดส่วนนี้เพื่อบังคับ Status Bar บนสุดให้เป็นสีดำครับ
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
             android.view.Window window = getWindow();
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
@@ -223,19 +217,14 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
 
         load_ui_elements();
         
-        // ตัวจัดการระบบอัปเดตเวอร์ชันใหม่
         updateManager = new UpdateManager(this);
-        updateManager.checkUpdateAuto(); // สั่งตรวจเช็กอัปเดตอัตโนมัติขณะเริ่มแอป
+        updateManager.checkUpdateAuto();
 
         doBindService();
         warn_app_expiration(this.prefs);
         new AppRate(this).setMinDaysUntilPrompt(14).setMinLaunchesUntilPrompt(10).init();
     }
 
-
-    // ==========================================
-    // คลาสระบบจัดการอัปเดตใหม่ (UpdateManager)
-    // ==========================================
     public class UpdateManager {
 
         private final OpenVPNClient activity;
@@ -281,13 +270,18 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         }
         
         public void forceCheckUpdate() {
-            // ลบ Version.txt เพื่อบังคับเช็คใหม่
             File versionFile = new File(activity.getFilesDir(), "Version.txt");
             if (versionFile.exists()) {
                 versionFile.delete();
             }
             this.isSilentCheck = false;
             startCheckUpdateTask();
+        }
+
+        public void shutdown() {
+            if (executor != null && !executor.isShutdown()) {
+                executor.shutdown();
+            }
         }
 
         private void startCheckUpdateTask() {
@@ -321,7 +315,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             });
         }
 
-private void onCheckUpdateFinished(JSONObject result) {
+        private void onCheckUpdateFinished(JSONObject result) {
             if (result == null || activity.isFinishing() || activity.isDestroyed()) return;
 
             try {
@@ -338,7 +332,6 @@ private void onCheckUpdateFinished(JSONObject result) {
                 String changelog = result.optString("Changelog", "");
 
                 if (isNewVersionAvailable(serverVersion, currentVersion)) {
-                    // ไม่เซฟเวอร์ชันตอนนี้ — เซฟตอนกดปุ่มอัปเดตจริง
                     showUpdateDialog(activity, serverVersion, changelog, downloadUrl, result.toString());
                 } else {
                     if (!isSilentCheck) {
@@ -356,7 +349,7 @@ private void onCheckUpdateFinished(JSONObject result) {
             }
         }
 
-private void showUpdateDialog(Context context, String version, String changelog, String downloadUrl, String versionJson) {
+        private void showUpdateDialog(Context context, String version, String changelog, String downloadUrl, String versionJson) {
             this.pendingVersionJson = versionJson;
 
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
@@ -390,7 +383,6 @@ private void showUpdateDialog(Context context, String version, String changelog,
 
             if (btnUpdate != null) {
                 btnUpdate.setOnClickListener(v -> {
-                    // เปลี่ยนเป็นโหมดกำลังอัปเดต ใน dialog เดิม
                     if (tvTitle != null) tvTitle.setText("กำลังอัปเดตเซิร์ฟเวอร์");
                     if (tvStatus != null) {
                         tvStatus.setVisibility(View.VISIBLE);
@@ -410,20 +402,6 @@ private void showUpdateDialog(Context context, String version, String changelog,
             dialog.show();
         }
 
-        private void saveVersionOnCancel(String version) {
-            try {
-                File file = new File(activity.getFilesDir(), "Version.txt");
-                JSONObject json = new JSONObject();
-                json.put("Version", "0.0");
-                json.put("Versioncn", version);
-
-                saveStringToFile(file, json.toString());
-                upEditor.putBoolean("isFirstRun", true).apply();
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to save version on cancel", e);
-            }
-        }
-
         private void initDefaultVersionFile() {
             try {
                 File file = new File(activity.getFilesDir(), "Version.txt");
@@ -437,32 +415,32 @@ private void showUpdateDialog(Context context, String version, String changelog,
             }
         }
 
-private boolean isNewVersionAvailable(String newVersion, String currentVersion) {
-    // ป้องกัน Crash กรณีค่าที่ส่งเข้ามาเป็น null หรือค่าว่าง
-    if (newVersion == null || newVersion.trim().isEmpty()) return false;
-    if (currentVersion == null || currentVersion.trim().isEmpty()) return true; // ถ้าในเครื่องยังไม่มีเวอร์ชัน ให้ถือว่าต้องอัปเดต
+        private boolean isNewVersionAvailable(String newVersion, String currentVersion) {
+            if (newVersion == null || newVersion.trim().isEmpty()) return false;
+            if (currentVersion == null || currentVersion.trim().isEmpty()) return true;
 
-    String[] newParts = newVersion.trim().split("\\.");
-    String[] currentParts = currentVersion.trim().split("\\.");
-    int length = Math.max(newParts.length, currentParts.length);
+            String[] newParts = newVersion.trim().split("\\.");
+            String[] currentParts = currentVersion.trim().split("\\.");
+            int length = Math.max(newParts.length, currentParts.length);
 
-    for (int i = 0; i < length; i++) {
-        int v1 = i < newParts.length ? parseVersionPart(newParts[i]) : 0;
-        int v2 = i < currentParts.length ? parseVersionPart(currentParts[i]) : 0;
-        if (v1 < v2) return false;
-        if (v1 > v2) return true;
-    }
-    return false;
-}
-private int parseVersionPart(String part) {
-    try {
-        // ดึงเฉพาะตัวเลขออกมา เผื่อมีตัวอักษร เช่น "1.0.0-beta"
-        String numberOnly = part.replaceAll("[^0-9]", "");
-        return numberOnly.isEmpty() ? 0 : Integer.parseInt(numberOnly);
-    } catch (NumberFormatException e) {
-        return 0;
-    }
-}
+            for (int i = 0; i < length; i++) {
+                int v1 = i < newParts.length ? parseVersionPart(newParts[i]) : 0;
+                int v2 = i < currentParts.length ? parseVersionPart(currentParts[i]) : 0;
+                if (v1 < v2) return false;
+                if (v1 > v2) return true;
+            }
+            return false;
+        }
+
+        private int parseVersionPart(String part) {
+            try {
+                String numberOnly = part.replaceAll("[^0-9]", "");
+                return numberOnly.isEmpty() ? 0 : Integer.parseInt(numberOnly);
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        }
+
         public String readFileToString(File file) {
             StringBuilder builder = new StringBuilder();
             try (InputStream in = new FileInputStream(file);
@@ -543,187 +521,188 @@ private int parseVersionPart(String part) {
             });
         }
 
-private void startDownloadZipWithDialog(String downloadUrl, AlertDialog dialog,
-                                       TextView tvTitle, TextView tvStatus,
-                                       ProgressBar progressUpdate,
-                                       Button btnCancel, Button btnUpdate) {
-    executor.execute(() -> {
-        File zipFile = null;
-        HttpURLConnection conn = null;
-        try {
-            URL url = new URL(downloadUrl);
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            //  ใส่ User-Agent เพื่อไม่ให้ GitHub บล็อกการดาวน์โหลด
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile)");
-            conn.setInstanceFollowRedirects(true); //  อนุญาตให้ Redirect ไปยังไฟล์ดาวน์โหลดจริงได้
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(15000);
-            conn.connect();
+        private void startDownloadZipWithDialog(String downloadUrl, AlertDialog dialog,
+                                               TextView tvTitle, TextView tvStatus,
+                                               ProgressBar progressUpdate,
+                                               Button btnCancel, Button btnUpdate) {
+            executor.execute(() -> {
+                File zipFile = null;
+                HttpURLConnection conn = null;
+                boolean isSuccessExtracted = false;
+                String errorMessage = null;
 
-            // เช็ก HTTP Response Code (ต้องเป็น 200 OK)
-            int responseCode = conn.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_MOVED_PERM || responseCode == HttpURLConnection.HTTP_MOVED_TEMP) {
-                // หากมีการ Redirect
-                String newUrl = conn.getHeaderField("Location");
-                conn.disconnect();
-                
-                url = new URL(newUrl);
-                conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile)");
-                conn.connect();
-                responseCode = conn.getResponseCode();
-            }
+                try {
+                    URL url = new URL(downloadUrl);
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile)");
+                    conn.setInstanceFollowRedirects(true);
+                    conn.setConnectTimeout(10000);
+                    conn.setReadTimeout(15000);
+                    conn.connect();
 
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                zipFile = new File(activity.getFilesDir(), "Configs.zip");
-                try (InputStream in = conn.getInputStream();
-                     OutputStream out = new FileOutputStream(zipFile)) {
-                    byte[] buffer = new byte[8192];
-                    int read;
-                    while ((read = in.read(buffer)) > 0) {
-                        out.write(buffer, 0, read);
+                    int responseCode = conn.getResponseCode();
+                    if (responseCode == HttpURLConnection.HTTP_MOVED_PERM || responseCode == HttpURLConnection.HTTP_MOVED_TEMP) {
+                        String newUrl = conn.getHeaderField("Location");
+                        conn.disconnect();
+                        
+                        url = new URL(newUrl);
+                        conn = (HttpURLConnection) url.openConnection();
+                        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mobile)");
+                        conn.connect();
+                        responseCode = conn.getResponseCode();
                     }
-                    out.flush();
+
+                    if (responseCode == HttpURLConnection.HTTP_OK) {
+                        zipFile = new File(activity.getFilesDir(), "Configs.zip");
+                        try (InputStream in = conn.getInputStream();
+                             OutputStream out = new FileOutputStream(zipFile)) {
+                            byte[] buffer = new byte[8192];
+                            int read;
+                            while ((read = in.read(buffer)) > 0) {
+                                out.write(buffer, 0, read);
+                            }
+                            out.flush();
+                        }
+
+                        // แตกไฟล์บน Background Thread เพื่อป้องกัน UI ล็อค
+                        cleanOldFiles();
+                        ZipFile zip = new ZipFile(zipFile);
+                        if (zip.isEncrypted()) {
+                            zip.setPassword(OpenVPNClient.ZIP_PASSWORD);
+                        }
+                        zip.extractAll(activity.getFilesDir().getAbsolutePath());
+                        if (zipFile.exists()) zipFile.delete();
+
+                        renameOvpnFilesToEncoded();
+
+                        if (pendingVersionJson != null) {
+                            try {
+                                File file = new File(activity.getFilesDir(), "Version.txt");
+                                saveStringToFile(file, pendingVersionJson);
+                            } catch (Exception e) {
+                                Log.e(TAG, "Save version failed", e);
+                            }
+                            pendingVersionJson = null;
+                        }
+
+                        isSuccessExtracted = true;
+                    } else {
+                        errorMessage = "HTTP Error: " + responseCode;
+                        Log.e(TAG, "Download failed with HTTP code: " + responseCode);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Download & process failed", e);
+                    errorMessage = e.getMessage();
+                    isSuccessExtracted = false;
+                } finally {
+                    if (conn != null) conn.disconnect();
                 }
-            } else {
-                Log.e(TAG, "Download failed with HTTP code: " + responseCode);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Download zip failed", e);
-            zipFile = null;
-        } finally {
-            if (conn != null) conn.disconnect();
+
+                final boolean success = isSuccessExtracted;
+                final String errorText = errorMessage;
+
+                mainHandler.post(() -> {
+                    if (activity.isFinishing() || activity.isDestroyed()) return;
+
+                    if (!success) {
+                        if (tvTitle != null) tvTitle.setText("อัปเดตล้มเหลว");
+                        if (tvStatus != null) tvStatus.setText(errorText != null ? errorText : "ดาวน์โหลดไม่สำเร็จ ลองใหม่ภายหลัง");
+                        if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
+                        if (btnCancel != null) {
+                            btnCancel.setEnabled(true);
+                            btnCancel.setText("ปิด");
+                            btnCancel.setOnClickListener(v -> dialog.dismiss());
+                        }
+                        if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
+                        return;
+                    }
+
+                    refreshProfilesInApp();
+
+                    if (tvTitle != null) tvTitle.setText("อัปเดตสำเร็จ");
+                    if (tvStatus != null) tvStatus.setText("โปรไฟล์ถูกอัปเดตเรียบร้อยแล้ว");
+                    if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
+                    if (btnCancel != null) {
+                        btnCancel.setEnabled(true);
+                        btnCancel.setText("ปิด");
+                        btnCancel.setOnClickListener(v -> dialog.dismiss());
+                    }
+                    if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
+                });
+            });
         }
 
-        final File finalZipFile = zipFile;
-        mainHandler.post(() -> {
-            if (finalZipFile == null || !finalZipFile.exists()) {
-                if (tvTitle != null) tvTitle.setText("อัปเดตล้มเหลว");
-                if (tvStatus != null) tvStatus.setText("ดาวน์โหลดไม่สำเร็จ ลองใหม่ภายหลัง");
-                if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
-                if (btnCancel != null) {
-                    btnCancel.setEnabled(true);
-                    btnCancel.setText("ปิด");
-                }
-                if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
+        private void onZipDownloaded(File zipFile) {
+            if (zipFile == null || !zipFile.exists()) {
+                showToast("ดาวน์โหลดไฟล์ล้มเหลว");
                 return;
             }
 
-            // แตกไฟล์
-            cleanOldFiles();
-            try {
-                ZipFile zip = new ZipFile(finalZipFile);
-                if (zip.isEncrypted()) {
-                    zip.setPassword(OpenVPNClient.ZIP_PASSWORD);
-                }
-                zip.extractAll(activity.getFilesDir().getAbsolutePath());
-                if (finalZipFile.exists()) finalZipFile.delete();
-
-                renameOvpnFilesToEncoded();
-
-                if (pendingVersionJson != null) {
-                    try {
-                        File file = new File(activity.getFilesDir(), "Version.txt");
-                        saveStringToFile(file, pendingVersionJson);
-                    } catch (Exception e) {
-                        Log.e(TAG, "Save version failed", e);
+            executor.execute(() -> {
+                boolean success = false;
+                try {
+                    cleanOldFiles();
+                    ZipFile zip = new ZipFile(zipFile);
+                    if (zip.isEncrypted()) {
+                        zip.setPassword(OpenVPNClient.ZIP_PASSWORD);
                     }
-                    pendingVersionJson = null;
+                    zip.extractAll(activity.getFilesDir().getAbsolutePath());
+                    if (zipFile.exists()) {
+                        zipFile.delete();
+                    }
+
+                    renameOvpnFilesToEncoded();
+
+                    if (pendingVersionJson != null) {
+                        try {
+                            File file = new File(activity.getFilesDir(), "Version.txt");
+                            saveStringToFile(file, pendingVersionJson);
+                        } catch (Exception e) {
+                            Log.e(TAG, "Save version failed", e);
+                        }
+                        pendingVersionJson = null;
+                    }
+                    success = true;
+                } catch (Exception e) {
+                    Log.e(TAG, "Zip extract failed", e);
                 }
 
-                // สำเร็จ — รีเฟรชโปรไฟล์ในแอป
-                refreshProfilesInApp();
-
-                if (tvTitle != null) tvTitle.setText("อัปเดตสำเร็จ");
-                if (tvStatus != null) tvStatus.setText("โปรไฟล์ถูกอัปเดตแล้ว");
-                if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
-                if (btnCancel != null) {
-                    btnCancel.setEnabled(true);
-                    btnCancel.setText("ปิด");
-                    btnCancel.setOnClickListener(v -> dialog.dismiss());
-                }
-                if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
-
-            } catch (Exception e) {
-                if (tvTitle != null) tvTitle.setText("เกิดข้อผิดพลาด");
-                if (tvStatus != null) tvStatus.setText(e.getMessage());
-                if (progressUpdate != null) progressUpdate.setVisibility(View.GONE);
-                if (btnCancel != null) {
-                    btnCancel.setEnabled(true);
-                    btnCancel.setText("ปิด");
-                }
-                if (btnUpdate != null) btnUpdate.setVisibility(View.GONE);
-            }
-        });
-    });
-}
-
-
-private void onZipDownloaded(File zipFile) {
-    if (zipFile == null || !zipFile.exists()) {
-        showToast("ดาวน์โหลดไฟล์ล้มเหลว");
-        return;
-    }
-
-    cleanOldFiles();
-
-    try {
-        ZipFile zip = new ZipFile(zipFile);
-        if (zip.isEncrypted()) {
-            zip.setPassword(OpenVPNClient.ZIP_PASSWORD);
-        }
-        zip.extractAll(activity.getFilesDir().getAbsolutePath());
-        if (zipFile.exists()) {
-            zipFile.delete();
+                final boolean isSuccess = success;
+                mainHandler.post(() -> {
+                    if (isSuccess) {
+                        showSuccessAndRestartDialog();
+                    } else {
+                        showToast("เกิดข้อผิดพลาดในการแตกไฟล์โปรไฟล์");
+                    }
+                });
+            });
         }
 
-        renameOvpnFilesToEncoded();
+        private void renameOvpnFilesToEncoded() {
+            File dir = activity.getFilesDir();
+            File[] files = dir.listFiles();
+            if (files == null) return;
 
-        // บันทึกเวอร์ชันหลังอัปเดตสำเร็จเท่านั้น
-        if (pendingVersionJson != null) {
-            try {
-                File file = new File(activity.getFilesDir(), "Version.txt");
-                saveStringToFile(file, pendingVersionJson);
-            } catch (Exception e) {
-                Log.e(TAG, "Save version failed", e);
-            }
-            pendingVersionJson = null;
-        }
+            for (File file : files) {
+                String name = file.getName();
+                if (!name.toLowerCase().endsWith(".ovpn")) continue;
 
-        showSuccessAndRestartDialog();
-    } catch (Exception e) {
-        showToast("เกิดข้อผิดพลาด: " + e.getMessage());
-    }
-}
+                String baseName = name.substring(0, name.length() - 5);
 
-private void renameOvpnFilesToEncoded() {
-    File dir = activity.getFilesDir();
-    File[] files = dir.listFiles();
-    if (files == null) return;
-
-    for (File file : files) {
-        String name = file.getName();
-        if (!name.toLowerCase().endsWith(".ovpn")) continue;
-
-        // ตัด .ovpn ออก
-        String baseName = name.substring(0, name.length() - 5);
-
-        // ถ้าชื่อมีช่องว่างหรือตัวอักษรพิเศษ ให้ encode
-        try {
-            String encoded = java.net.URLEncoder.encode(baseName, "UTF-8") + ".ovpn";
-            // URLEncoder ใช้ + แทนช่องว่าง ซึ่งตรงกับที่แอปใช้
-            if (!encoded.equals(name)) {
-                File newFile = new File(dir, encoded);
-                if (!newFile.exists()) {
-                    file.renameTo(newFile);
+                try {
+                    String encoded = java.net.URLEncoder.encode(baseName, "UTF-8") + ".ovpn";
+                    if (!encoded.equals(name)) {
+                        File newFile = new File(dir, encoded);
+                        if (!newFile.exists()) {
+                            file.renameTo(newFile);
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Rename ovpn failed: " + name, e);
                 }
             }
-        } catch (Exception e) {
-            Log.e(TAG, "Rename ovpn failed: " + name, e);
         }
-    }
-}
 
         private void cleanOldFiles() {
             File dir = activity.getFilesDir();
@@ -739,10 +718,9 @@ private void renameOvpnFilesToEncoded() {
             }
         }
 
-private void showSuccessAndRestartDialog() {
+        private void showSuccessAndRestartDialog() {
             if (activity.isFinishing() || activity.isDestroyed()) return;
 
-            // โหลดโปรไฟล์ใหม่เข้าแอป โดยไม่ปิดแอป
             refreshProfilesInApp();
 
             new AlertDialog.Builder(activity)
@@ -761,7 +739,6 @@ private void showSuccessAndRestartDialog() {
                     for (File f : files) {
                         String name = f.getName().toLowerCase();
                         if (name.endsWith(".ovpn")) {
-                            // นำเข้าโปรไฟล์แต่ละไฟล์เข้าแอป
                             activity.submitImportProfileViaPathIntent(f.getAbsolutePath());
                         }
                     }
@@ -770,7 +747,6 @@ private void showSuccessAndRestartDialog() {
                 Log.e(TAG, "refreshProfilesInApp failed", e);
             }
 
-            // รีเฟรชหน้าจอ
             activity.runOnUiThread(() -> {
                 try {
                     activity.gen_ui_reset_event(true);
@@ -779,27 +755,6 @@ private void showSuccessAndRestartDialog() {
                     Log.e(TAG, "UI refresh failed", e);
                 }
             });
-        }
-
-        private void restartApp() {
-            Intent intent = new Intent(activity, OpenVPNClient.class);
-            int flags = PendingIntent.FLAG_CANCEL_CURRENT;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                flags |= PendingIntent.FLAG_IMMUTABLE;
-            }
-            PendingIntent pendingIntent = PendingIntent.getActivity(
-                    activity,
-                    123456,
-                    intent,
-                    flags
-            );
-
-            AlarmManager alarmManager = (AlarmManager) activity.getSystemService(Context.ALARM_SERVICE);
-            if (alarmManager != null) {
-                alarmManager.set(AlarmManager.RTC, System.currentTimeMillis() + 200, pendingIntent);
-            }
-            executor.shutdown();
-            System.exit(0);
         }
     }
 
@@ -819,14 +774,6 @@ private void showSuccessAndRestartDialog() {
                 Intent.ShortcutIconResource.fromContext(this, R.drawable.icon));
         addIntent.setAction("com.android.launcher.action.INSTALL_SHORTCUT");
         sendBroadcast(addIntent);
-    }
-
-    private void createDisconnectShortcut(String title) {
-        Toast.makeText(this, "สร้างทางลัดตัดการเชื่อมต่อแล้ว", Toast.LENGTH_SHORT).show();
-    }
-
-    private void createAppShortcut(String title) {
-        Toast.makeText(this, "สร้างทางลัดแอปเรียบร้อยแล้ว", Toast.LENGTH_SHORT).show();
     }
 
     private void ok_dialog(String title, String message, Runnable onDismiss) {
@@ -1048,6 +995,9 @@ private void showSuccessAndRestartDialog() {
     @Override
     protected void onDestroy() {
         stop();
+        if (updateManager != null) {
+            updateManager.shutdown();
+        }
         Log.d(TAG, "CLI: onDestroy called");
         super.onDestroy();
     }
@@ -1400,7 +1350,6 @@ private void showSuccessAndRestartDialog() {
                     }
                 }
                 
-                // --- ส่วนจัดการปุ่มกดและสถานะ ---
                 if (this.button_group != null) this.button_group.setVisibility(View.VISIBLE);
                 if (this.status_view != null) this.status_view.setVisibility(View.VISIBLE);
                 
@@ -1427,7 +1376,6 @@ private void showSuccessAndRestartDialog() {
                 if (this.cr_group != null) this.cr_group.setVisibility(View.GONE);
                 if (this.conn_details_group != null) this.conn_details_group.setVisibility(View.GONE);
                 
-                // เปิดให้แสดงปุ่มกดเพื่อกดเชื่อมต่อได้ แม้ระบบยังอ่านข้อมูลโปรไฟล์ย่อยไม่สมบูรณ์
                 if (this.button_group != null) this.button_group.setVisibility(View.VISIBLE);
                 if (this.connect_button != null) this.connect_button.setVisibility(View.VISIBLE);
                 if (this.disconnect_button != null) this.disconnect_button.setVisibility(View.GONE);
@@ -1486,7 +1434,7 @@ private void showSuccessAndRestartDialog() {
         }
     }
     
-private static final int REQUEST_IMPORT_PROFILE_SAF = 1002;
+    private static final int REQUEST_IMPORT_PROFILE_SAF = 1002;
     private static final int REQUEST_IMPORT_PKCS12_SAF = 1003;
 
     private void request_file_selection_dialog(int requestCode) {
@@ -1517,66 +1465,66 @@ private static final int REQUEST_IMPORT_PROFILE_SAF = 1002;
             Log.e(TAG, "file picker error", e);
         }
     }
-    @Override
-public boolean onOptionsItemSelected(MenuItem item) {
-    int id = item.getItemId();
 
-    if (id == R.id.about_menu) {
-        startActivityForResult(new Intent(this, OpenVPNAbout.class), 0);
-        return true;
-    } else if (id == R.id.help_menu) {
-        startActivityForResult(new Intent(this, OpenVPNHelp.class), 0);
-        return true;
-    } else if (id == R.id.import_profile_remote) {
-        startActivityForResult(new Intent(this, OpenVPNImportProfile.class), 0);
-        return true;
-    } else if (id == R.id.import_profile) {
-        // ใช้ระบบนำเข้าเดิมที่ทำงานแล้ว
-        request_file_selection_dialog(S_ONSTART_CALLED);
-        return true;
-    } else if (id == R.id.import_pkcs12) {
-        request_file_selection_dialog(REQUEST_IMPORT_PKCS12);
-        return true;
-    } else if (id == R.id.preferences) {
-        startActivityForResult(new Intent(this, OpenVPNPrefs.class), 0);
-        return true;
-    } else if (id == R.id.add_proxy) {
-        startActivityForResult(new Intent(this, OpenVPNAddProxy.class), 0);
-        return true;
-    } else if (id == R.id.add_shortcut_connect) {
-        startActivityForResult(
-                new Intent(this, OpenVPNAddShortcut.class)
-                        .putExtra("net.openvpn.openvpn.SHORTCUT_TYPE", "connect"), 0);
-        return true;
-    } else if (id == R.id.add_shortcut_disconnect) {
-        startActivityForResult(
-                new Intent(this, OpenVPNAddShortcut.class)
-                        .putExtra("net.openvpn.openvpn.SHORTCUT_TYPE", "disconnect"), 0);
-        return true;
-    } else if (id == R.id.add_shortcut_app) {
-        startActivityForResult(
-                new Intent(this, OpenVPNAddShortcut.class)
-                        .putExtra("net.openvpn.openvpn.SHORTCUT_TYPE", "app"), 0);
-        return true;
-    } else if (id == R.id.show_log) {
-        startActivityForResult(new Intent(this, OpenVPNLog.class), 0);
-        return true;
-    } else if (id == R.id.show_raw_stats) {
-        startActivityForResult(new Intent(this, OpenVPNStats.class), 0);
-        return true;
-    } else if (id == R.id.forget_creds) {
-        forget_creds_with_confirm();
-        return true;
-    } else if (id == R.id.exit_partial) {
-        finish();
-        return true;
-    } else if (id == R.id.exit_full) {
-        this.stop_service_on_client_exit = true;
-        finish();
-        return true;
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+
+        if (id == R.id.about_menu) {
+            startActivityForResult(new Intent(this, OpenVPNAbout.class), 0);
+            return true;
+        } else if (id == R.id.help_menu) {
+            startActivityForResult(new Intent(this, OpenVPNHelp.class), 0);
+            return true;
+        } else if (id == R.id.import_profile_remote) {
+            startActivityForResult(new Intent(this, OpenVPNImportProfile.class), 0);
+            return true;
+        } else if (id == R.id.import_profile) {
+            request_file_selection_dialog(S_ONSTART_CALLED);
+            return true;
+        } else if (id == R.id.import_pkcs12) {
+            request_file_selection_dialog(REQUEST_IMPORT_PKCS12);
+            return true;
+        } else if (id == R.id.preferences) {
+            startActivityForResult(new Intent(this, OpenVPNPrefs.class), 0);
+            return true;
+        } else if (id == R.id.add_proxy) {
+            startActivityForResult(new Intent(this, OpenVPNAddProxy.class), 0);
+            return true;
+        } else if (id == R.id.add_shortcut_connect) {
+            startActivityForResult(
+                    new Intent(this, OpenVPNAddShortcut.class)
+                            .putExtra("net.openvpn.openvpn.SHORTCUT_TYPE", "connect"), 0);
+            return true;
+        } else if (id == R.id.add_shortcut_disconnect) {
+            startActivityForResult(
+                    new Intent(this, OpenVPNAddShortcut.class)
+                            .putExtra("net.openvpn.openvpn.SHORTCUT_TYPE", "disconnect"), 0);
+            return true;
+        } else if (id == R.id.add_shortcut_app) {
+            startActivityForResult(
+                    new Intent(this, OpenVPNAddShortcut.class)
+                            .putExtra("net.openvpn.openvpn.SHORTCUT_TYPE", "app"), 0);
+            return true;
+        } else if (id == R.id.show_log) {
+            startActivityForResult(new Intent(this, OpenVPNLog.class), 0);
+            return true;
+        } else if (id == R.id.show_raw_stats) {
+            startActivityForResult(new Intent(this, OpenVPNStats.class), 0);
+            return true;
+        } else if (id == R.id.forget_creds) {
+            forget_creds_with_confirm();
+            return true;
+        } else if (id == R.id.exit_partial) {
+            finish();
+            return true;
+        } else if (id == R.id.exit_full) {
+            this.stop_service_on_client_exit = true;
+            finish();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
-    return super.onOptionsItemSelected(item);
-}
 
     @Override
     public void onClick(View v) {
@@ -1592,6 +1540,7 @@ public boolean onOptionsItemSelected(MenuItem item) {
             openContextMenu(v);
         }
     }
+
     private void start_connect() {
         cancel_ui_reset();
         Intent intent = VpnService.prepare(this);
@@ -1930,163 +1879,159 @@ public boolean onOptionsItemSelected(MenuItem item) {
         submitConnectIntent(profile_name, server, vpn_proto, ipv6, conn_timeout, username, password, is_auth_pwd_save, pk_password, response, epki_alias, compression_mode, proxy_name, null, null, true, get_gui_version(app_name));
     }
 
-private void import_profile(String path) {
-    submitImportProfileViaPathIntent(path);
-}
-
-@Override
-protected void onActivityResult(int request, int result, Intent data) {
-    Log.d(TAG, String.format("CLI: onActivityResult request=%d result=%d", request, result));
-    String path;
-    switch (request) {
-        case S_BIND_CALLED:
-            if (result == RESULT_OK) {
-                resolve_epki_alias_then_connect();
-                return;
-            } else if (result != RESULT_CANCELED) {
-                return;
-            } else {
-                if (this.finish_on_connect == FinishOnConnect.ENABLED) {
-                    finish();
-                    return;
-                } else if (this.finish_on_connect == FinishOnConnect.ENABLED_ACROSS_ONSTART) {
-                    this.finish_on_connect = FinishOnConnect.ENABLED;
-                    start_connect();
-                    return;
-                } else {
-                    return;
-                }
-            }
-
-        // ===== ใหม่: นำเข้า .ovpn จากตัวเลือกไฟล์ระบบ (SAF) =====
-        case REQUEST_IMPORT_PROFILE_SAF:
-            if (result == RESULT_OK && data != null && data.getData() != null) {
-                importProfileFromUri(data.getData());
-            }
-            return;
-
-        // ===== ใหม่: นำเข้า PKCS12 จากตัวเลือกไฟล์ระบบ (SAF) =====
-        case REQUEST_IMPORT_PKCS12_SAF:
-            if (result == RESULT_OK && data != null && data.getData() != null) {
-                path = copyUriToCache(data.getData(), "import.p12");
-                if (path != null) {
-                    import_pkcs12(path);
-                } else {
-                    Toast.makeText(this, "ไม่สามารถอ่านไฟล์ PKCS12 ได้", Toast.LENGTH_LONG).show();
-                }
-            }
-            return;
-
-        // ===== เดิม: FileDialog (เก็บไว้ได้) =====
-        case S_ONSTART_CALLED:
-            if (result == RESULT_OK && data != null) {
-                path = data.getStringExtra(FileDialog.RESULT_PATH);
-                Log.d(TAG, String.format("CLI: IMPORT_PROFILE: %s", path));
-                if (path != null) {
-                    import_profile(path);
-                }
-                return;
-            }
-            return;
-
-        case REQUEST_IMPORT_PKCS12:
-            if (result == RESULT_OK && data != null) {
-                path = data.getStringExtra(FileDialog.RESULT_PATH);
-                Log.d(TAG, String.format("CLI: IMPORT_PKCS12: %s", path));
-                if (path != null) {
-                    import_pkcs12(path);
-                }
-                return;
-            }
-            return;
-
-        default:
-            super.onActivityResult(request, result, data);
-            return;
+    private void import_profile(String path) {
+        submitImportProfileViaPathIntent(path);
     }
-}
 
-private void importProfileFromUri(Uri uri) {
-    try {
-        String filename = "imported.ovpn";
-        try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) {
-            if (c != null && c.moveToFirst()) {
-                int idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
-                if (idx >= 0) {
-                    String name = c.getString(idx);
-                    if (name != null && name.length() > 0) {
-                        filename = name;
+    @Override
+    protected void onActivityResult(int request, int result, Intent data) {
+        Log.d(TAG, String.format("CLI: onActivityResult request=%d result=%d", request, result));
+        String path;
+        switch (request) {
+            case S_BIND_CALLED:
+                if (result == RESULT_OK) {
+                    resolve_epki_alias_then_connect();
+                    return;
+                } else if (result != RESULT_CANCELED) {
+                    return;
+                } else {
+                    if (this.finish_on_connect == FinishOnConnect.ENABLED) {
+                        finish();
+                        return;
+                    } else if (this.finish_on_connect == FinishOnConnect.ENABLED_ACROSS_ONSTART) {
+                        this.finish_on_connect = FinishOnConnect.ENABLED;
+                        start_connect();
+                        return;
+                    } else {
+                        return;
+                    }
+                }
+
+            case REQUEST_IMPORT_PROFILE_SAF:
+                if (result == RESULT_OK && data != null && data.getData() != null) {
+                    importProfileFromUri(data.getData());
+                }
+                return;
+
+            case REQUEST_IMPORT_PKCS12_SAF:
+                if (result == RESULT_OK && data != null && data.getData() != null) {
+                    path = copyUriToCache(data.getData(), "import.p12");
+                    if (path != null) {
+                        import_pkcs12(path);
+                    } else {
+                        Toast.makeText(this, "ไม่สามารถอ่านไฟล์ PKCS12 ได้", Toast.LENGTH_LONG).show();
+                    }
+                }
+                return;
+
+            case S_ONSTART_CALLED:
+                if (result == RESULT_OK && data != null) {
+                    path = data.getStringExtra(FileDialog.RESULT_PATH);
+                    Log.d(TAG, String.format("CLI: IMPORT_PROFILE: %s", path));
+                    if (path != null) {
+                        import_profile(path);
+                    }
+                    return;
+                }
+                return;
+
+            case REQUEST_IMPORT_PKCS12:
+                if (result == RESULT_OK && data != null) {
+                    path = data.getStringExtra(FileDialog.RESULT_PATH);
+                    Log.d(TAG, String.format("CLI: IMPORT_PKCS12: %s", path));
+                    if (path != null) {
+                        import_pkcs12(path);
+                    }
+                    return;
+                }
+                return;
+
+            default:
+                super.onActivityResult(request, result, data);
+                return;
+        }
+    }
+
+    private void importProfileFromUri(Uri uri) {
+        try {
+            String filename = "imported.ovpn";
+            try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+                if (c != null && c.moveToFirst()) {
+                    int idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                    if (idx >= 0) {
+                        String name = c.getString(idx);
+                        if (name != null && name.length() > 0) {
+                            filename = name;
+                        }
                     }
                 }
             }
-        }
 
-        filename = new java.io.File(filename).getName();
-        if (!filename.toLowerCase(java.util.Locale.US).endsWith(".ovpn")) {
-            filename = filename + ".ovpn";
-        }
-
-        java.io.InputStream in = getContentResolver().openInputStream(uri);
-        if (in == null) {
-            throw new java.io.IOException("openInputStream returned null");
-        }
-
-        StringBuilder sb = new StringBuilder();
-        try (java.io.Reader reader = new java.io.BufferedReader(
-                new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8))) {
-            char[] buf = new char[8192];
-            int n;
-            while ((n = reader.read(buf)) > 0) {
-                sb.append(buf, 0, n);
+            filename = new java.io.File(filename).getName();
+            if (!filename.toLowerCase(java.util.Locale.US).endsWith(".ovpn")) {
+                filename = filename + ".ovpn";
             }
-        }
 
-        String content = sb.toString();
-        if (content.trim().isEmpty()) {
-            Toast.makeText(this, "ไฟล์ว่างหรืออ่านไม่ได้", Toast.LENGTH_LONG).show();
-            return;
-        }
+            java.io.InputStream in = getContentResolver().openInputStream(uri);
+            if (in == null) {
+                throw new java.io.IOException("openInputStream returned null");
+            }
 
-        submitImportProfileIntent(content, filename, true);
-        Toast.makeText(this, "กำลังนำเข้า: " + filename, Toast.LENGTH_SHORT).show();
-
-    } catch (Exception e) {
-        Log.e(TAG, "importProfileFromUri failed", e);
-        Toast.makeText(this, "นำเข้าไม่สำเร็จ: " + e.getMessage(), Toast.LENGTH_LONG).show();
-    }
-}
-
-private String copyUriToCache(Uri uri, String fallbackName) {
-    try {
-        String name = fallbackName;
-        try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) {
-            if (c != null && c.moveToFirst()) {
-                int idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
-                if (idx >= 0) {
-                    String n = c.getString(idx);
-                    if (n != null && !n.isEmpty()) name = n;
+            StringBuilder sb = new StringBuilder();
+            try (java.io.Reader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8))) {
+                char[] buf = new char[8192];
+                int n;
+                while ((n = reader.read(buf)) > 0) {
+                    sb.append(buf, 0, n);
                 }
             }
-        }
-        name = new java.io.File(name).getName();
-        java.io.File out = new java.io.File(getCacheDir(), name);
-        try (java.io.InputStream in = getContentResolver().openInputStream(uri);
-             java.io.OutputStream os = new java.io.FileOutputStream(out)) {
-            if (in == null) return null;
-            byte[] buf = new byte[8192];
-            int n;
-            while ((n = in.read(buf)) > 0) {
-                os.write(buf, 0, n);
-            }
-            os.flush();
-        }
-        return out.getAbsolutePath();
-    } catch (Exception e) {
-        Log.e(TAG, "copyUriToCache failed", e);
-        return null;
-    }
-}
 
+            String content = sb.toString();
+            if (content.trim().isEmpty()) {
+                Toast.makeText(this, "ไฟล์ว่างหรืออ่านไม่ได้", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            submitImportProfileIntent(content, filename, true);
+            Toast.makeText(this, "กำลังนำเข้า: " + filename, Toast.LENGTH_SHORT).show();
+
+        } catch (Exception e) {
+            Log.e(TAG, "importProfileFromUri failed", e);
+            Toast.makeText(this, "นำเข้าไม่สำเร็จ: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private String copyUriToCache(Uri uri, String fallbackName) {
+        try {
+            String name = fallbackName;
+            try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+                if (c != null && c.moveToFirst()) {
+                    int idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                    if (idx >= 0) {
+                        String n = c.getString(idx);
+                        if (n != null && !n.isEmpty()) name = n;
+                    }
+                }
+            }
+            name = new java.io.File(name).getName();
+            java.io.File out = new java.io.File(getCacheDir(), name);
+            try (java.io.InputStream in = getContentResolver().openInputStream(uri);
+                 java.io.OutputStream os = new java.io.FileOutputStream(out)) {
+                if (in == null) return null;
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    os.write(buf, 0, n);
+                }
+                os.flush();
+            }
+            return out.getAbsolutePath();
+        } catch (Exception e) {
+            Log.e(TAG, "copyUriToCache failed", e);
+            return null;
+        }
+    }
 
     private TextView last_visible_edittext() {
         for (int i = 0; i < this.textgroups.length; i++) {
@@ -2209,16 +2154,14 @@ private String copyUriToCache(Uri uri, String fallbackName) {
         if (this.pk_password_edit != null) this.pk_password_edit.setOnEditorActionListener(this);
         if (this.response_edit != null) this.response_edit.setOnEditorActionListener(this);
         
-this.textgroups = new View[]{this.cr_group, this.password_group, this.pk_password_group, this.username_group};
+        this.textgroups = new View[]{this.cr_group, this.password_group, this.pk_password_group, this.username_group};
         this.textviews = new EditText[]{this.response_edit, this.password_edit, this.pk_password_edit, this.username_edit};
 
-// Bottom bar + FAB
-com.google.android.material.bottomappbar.BottomAppBar bottomBar =
-                findViewById(R.id.bottom_bar);
+        com.google.android.material.bottomappbar.BottomAppBar bottomBar = findViewById(R.id.bottom_bar);
         if (bottomBar != null) {
             bottomBar.setOnMenuItemClickListener(item -> {
                 int id = item.getItemId();
-if (id == R.id.bottom_home) {
+                if (id == R.id.bottom_home) {
                     Toast.makeText(this, "กำลังตรวจสอบอัปเดต...", Toast.LENGTH_SHORT).show();
                     if (updateManager != null) {
                         updateManager.checkUpdateManual();
@@ -2226,7 +2169,6 @@ if (id == R.id.bottom_home) {
                         Toast.makeText(this, "ระบบอัปเดตยังไม่พร้อม", Toast.LENGTH_SHORT).show();
                     }
                     return true;
-                
                 } else if (id == R.id.bottom_settings) {
                     startActivityForResult(new Intent(this, OpenVPNPrefs.class), 0);
                     return true;
@@ -2241,10 +2183,9 @@ if (id == R.id.bottom_home) {
             });
         }
 
-View fabMenu = findViewById(R.id.fab_menu);
+        View fabMenu = findViewById(R.id.fab_menu);
         if (fabMenu != null) {
             fabMenu.setOnClickListener(v -> {
-                // ทดสอบ: กดปุ่ม + แล้วเปิดเลือกไฟล์ .ovpn ทันที
                 request_file_selection_dialog(S_ONSTART_CALLED);
             });
         }
