@@ -2032,6 +2032,59 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             return null;
         }
     }
+    
+   private static final int REQUEST_IMPORT_WIREGUARD = 2101;
+
+    private void importWireGuardFromUri(Uri uri) {
+        try {
+            String name = "wireguard";
+            try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+                if (c != null && c.moveToFirst()) {
+                    int idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                    if (idx >= 0) {
+                        String n = c.getString(idx);
+                        if (n != null) {
+                            name = net.openvpn.openvpn.wg.WgConfigParser.nameFromFilename(n);
+                        }
+                    }
+                }
+            }
+
+            StringBuilder sb = new StringBuilder();
+            try (java.io.InputStream in = getContentResolver().openInputStream(uri);
+                 java.io.Reader r = new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8)) {
+                char[] buf = new char[8192];
+                int n;
+                while ((n = r.read(buf)) > 0) {
+                    sb.append(buf, 0, n);
+                }
+            }
+
+            net.openvpn.openvpn.wg.WgProfileStore store =
+                    new net.openvpn.openvpn.wg.WgProfileStore(this);
+            net.openvpn.openvpn.wg.WgProfileStore.Profile p =
+                    store.importConf(name, sb.toString());
+
+            Toast.makeText(this, "นำเข้า WireGuard: " + p.name, Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Log.e(TAG, "importWireGuardFromUri failed", e);
+            Toast.makeText(this, "นำเข้า WG ไม่สำเร็จ: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void request_wireguard_file_selection() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startActivityForResult(
+                    Intent.createChooser(intent, "เลือกไฟล์ WireGuard (.conf)"),
+                    REQUEST_IMPORT_WIREGUARD);
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(this, "ไม่พบแอปเลือกไฟล์", Toast.LENGTH_LONG).show();
+        }
+    }
 
     private TextView last_visible_edittext() {
         for (int i = 0; i < this.textgroups.length; i++) {
@@ -2183,12 +2236,12 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             });
         }
 
-        View fabMenu = findViewById(R.id.fab_menu);
-        if (fabMenu != null) {
-            fabMenu.setOnClickListener(v -> {
-                request_file_selection_dialog(S_ONSTART_CALLED);
-            });
-        }
+View fabMenu = findViewById(R.id.fab_menu);
+if (fabMenu != null) {
+    fabMenu.setOnClickListener(v -> {
+        request_wireguard_file_selection();
+    });
+}
 
         if (this.button_group != null) {
             this.button_group.setVisibility(View.VISIBLE);

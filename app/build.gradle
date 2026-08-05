@@ -68,4 +68,6 @@ dependencies {
 
     // รวมไฟล์ jar ในโฟลเดอร์ libs ทั้งหมด (ซึ่งมี zip4j อยู่แล้ว)
     implementation fileTree(include: ['*.jar'], dir: 'libs')
+    // WireGuard tunnel (ทางการ)
+    implementation 'com.wireguard.android:tunnel:1.0.20230706'
 }

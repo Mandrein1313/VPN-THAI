@@ -25,6 +25,7 @@
         android:theme="@style/AppTheme"
         tools:targetApi="34">
 
+        <!-- OpenVPN -->
         <service
             android:name="net.openvpn.openvpn.OpenVPNService"
             android:exported="true"
@@ -38,19 +39,31 @@
                 android:value="vpn" />
         </service>
 
-        <!-- กำหนด theme ให้หน้าหลักใช้ NoActionBar เพื่อปิดแถบสีเทาตัวบน แล้วใช้แถบของแอปพร้อมปุ่ม 3 จุด -->
- <activity
-    android:name="net.openvpn.openvpn.OpenVPNClient"
-    android:exported="true"
-    android:configChanges="keyboardHidden|orientation"
-    android:launchMode="singleTask"
-    android:windowSoftInputMode="adjustPan">
-    <intent-filter>
-        <action android:name="android.intent.action.MAIN" />
-        <category android:name="android.intent.category.LAUNCHER" />
-    </intent-filter>
-</activity>
+        <!-- WireGuard -->
+        <service
+            android:name="net.openvpn.openvpn.wg.WgVpnService"
+            android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:foregroundServiceType="specialUse">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
+        </service>
 
+        <activity
+            android:name="net.openvpn.openvpn.OpenVPNClient"
+            android:exported="true"
+            android:configChanges="keyboardHidden|orientation"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustPan">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name="net.openvpn.openvpn.OpenVPNAttachmentReceiver"
