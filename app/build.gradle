@@ -3,11 +3,14 @@ plugins {
 }
 
 android {
+    // เก็บ namespace เดิม ให้ตรงกับโฟลเดอร์ Java (net/openvpn/openvpn)
     namespace "net.openvpn.openvpn"
     compileSdk 34
 
     defaultConfig {
-        applicationId "net.openvpn.openvpn"
+        // ชื่อแอปตอนติดตั้ง (package ใหม่)
+        applicationId "com.thvpn.client"
+
         minSdk 21
         targetSdk 34
         versionCode 1
