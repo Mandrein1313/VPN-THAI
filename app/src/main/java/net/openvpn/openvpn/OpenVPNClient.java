@@ -82,6 +82,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
     private static final int REQUEST_IMPORT_PKCS12 = 3;
     private static final int REQUEST_IMPORT_PROFILE = 2;
     private static final int REQUEST_VPN_ACTOR_RIGHTS = 1;
+    private static final int REQUEST_IMPORT_WIREGUARD = 2101;
     private static final boolean RETAIN_AUTH = false;
     private static final int S_BIND_CALLED = 1;
     private static final int S_ONSTART_CALLED = 2;
@@ -2039,8 +2040,7 @@ protected void onActivityResult(int request, int result, Intent data) {
         }
     }
     
-   private static final int REQUEST_IMPORT_WIREGUARD = 2101;
-
+   
     private void importWireGuardFromUri(Uri uri) {
         try {
             String name = "wireguard";
