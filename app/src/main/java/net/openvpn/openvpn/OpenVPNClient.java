@@ -2197,23 +2197,6 @@ private void launchWgService(String profileId, String conf) {
         }).start();
     }
 
-    private void raise_keyboard(EditText editText) {
-        InputMethodManager mgr = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (mgr != null) {
-            mgr.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);
-        }
-    }
-
-    private void dismiss_keyboard() {
-        InputMethodManager mgr = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (mgr != null && this.textviews != null) {
-            for (TextView tv : this.textviews) {
-                if (tv != null) {
-                    mgr.hideSoftInputFromWindow(tv.getWindowToken(), 0);
-                }
-            }
-        }
-    }
 
 private TextView last_visible_edittext() {
         if (this.textgroups == null || this.textviews == null) return null;
