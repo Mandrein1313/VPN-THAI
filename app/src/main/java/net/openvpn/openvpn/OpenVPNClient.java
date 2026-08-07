@@ -1202,7 +1202,7 @@ private static final String WG_PREFIX = "[WG] ";
         return name != null && name.startsWith(WG_PREFIX);
     }
 
-    private void ui_setup(boolean active, int flags, String profile_override) {
+private void ui_setup(boolean active, int flags, String profile_override) {
         boolean orig_active = active;
         boolean autostart = RETAIN_AUTH;
         cancel_ui_reset();
@@ -1213,10 +1213,24 @@ private static final String WG_PREFIX = "[WG] ";
                 profile_override = this.autostart_profile_name;
                 this.autostart_profile_name = null;
             }
+
+            // จำ selection ปัจจุบัน / จาก prefs ก่อน rebuild spinner
+            String rememberSel = null;
+            if (this.profile_spin != null) {
+                rememberSel = SpinUtil.get_spinner_selected_item(this.profile_spin);
+            }
+            if (rememberSel == null || rememberSel.length() == 0) {
+                rememberSel = this.prefs.get_string("profile");
+            }
+            if (profile_override != null && profile_override.length() > 0) {
+                rememberSel = profile_override;
+            }
+
             ProfileList proflist = profile_list();
             Profile prof = null;
+
             if (proflist == null || proflist.size() <= 0) {
-                // ไม่มี OpenVPN — ยังโชว์ WG ถ้ามี
+                // ไม่มี OpenVPN — โชว์เฉพาะ WG
                 if (this.profile_spin != null) {
                     java.util.List<String> onlyWg = new java.util.ArrayList<>();
                     net.openvpn.openvpn.wg.WgProfileStore store =
@@ -1226,9 +1240,14 @@ private static final String WG_PREFIX = "[WG] ";
                     }
                     if (!onlyWg.isEmpty()) {
                         SpinUtil.show_spinner(this, this.profile_spin, onlyWg.toArray(new String[0]));
+                        if (isWireGuardSelection(rememberSel)) {
+                            SpinUtil.set_spinner_selected_item(this.profile_spin, rememberSel);
+                        }
                         if (this.profile_group != null) this.profile_group.setVisibility(View.VISIBLE);
                         if (this.profile_spin != null) this.profile_spin.setEnabled(!active);
-                        if (this.profile_edit != null) this.profile_edit.setVisibility(active ? View.GONE : View.VISIBLE);
+                        if (this.profile_edit != null) {
+                            this.profile_edit.setVisibility(active ? View.GONE : View.VISIBLE);
+                        }
                     } else {
                         if (this.profile_group != null) this.profile_group.setVisibility(View.GONE);
                     }
@@ -1240,11 +1259,20 @@ private static final String WG_PREFIX = "[WG] ";
                 SpinUtil.show_spinner(this, this.profile_spin, proflist.profile_names());
                 mergeWireGuardIntoProfileSpinner();
 
+                // คืนค่า selection หลัง rebuild (สำคัญมากสำหรับ [WG])
+                if (rememberSel != null && rememberSel.length() > 0) {
+                    SpinUtil.set_spinner_selected_item(this.profile_spin, rememberSel);
+                }
+
+                String spinnerSel = SpinUtil.get_spinner_selected_item(this.profile_spin);
+
                 if (active) {
                     ps = ProfileSource.SERVICE;
                     prof = current_profile();
                 }
-                if (prof == null && profile_override != null && !isWireGuardSelection(profile_override)) {
+
+                if (prof == null && profile_override != null
+                        && !isWireGuardSelection(profile_override)) {
                     ps = ProfileSource.PRIORITY;
                     prof = proflist.get_profile_by_name(profile_override);
                     if (prof == null) {
@@ -1252,48 +1280,64 @@ private static final String WG_PREFIX = "[WG] ";
                         autostart = RETAIN_AUTH;
                     }
                 }
+
                 if (prof == null) {
                     if ((UIF_PROFILE_SETTING_FROM_SPINNER & flags) != 0) {
                         ps = ProfileSource.SPINNER;
-                        String sel = SpinUtil.get_spinner_selected_item(this.profile_spin);
-                        if (!isWireGuardSelection(sel)) {
-                            prof = proflist.get_profile_by_name(sel);
+                        if (!isWireGuardSelection(spinnerSel)) {
+                            prof = proflist.get_profile_by_name(spinnerSel);
                         }
                     } else {
                         ps = ProfileSource.PREFERENCES;
                         String prefProf = this.prefs.get_string("profile");
-                        if (!isWireGuardSelection(prefProf)) {
+                        if (isWireGuardSelection(prefProf)) {
+                            SpinUtil.set_spinner_selected_item(this.profile_spin, prefProf);
+                            spinnerSel = prefProf;
+                        } else if (prefProf != null) {
                             prof = proflist.get_profile_by_name(prefProf);
                         }
                     }
                 }
-                if (prof == null && !isWireGuardSelection(SpinUtil.get_spinner_selected_item(this.profile_spin))) {
-                    // ถ้าไม่ได้เลือก WG และยังไม่มี prof → ใช้ตัวแรกของ OpenVPN
-                    String sel = SpinUtil.get_spinner_selected_item(this.profile_spin);
-                    if (sel == null || !isWireGuardSelection(sel)) {
-                        ps = ProfileSource.LIST0;
-                        prof = (Profile) proflist.get(0);
-                    }
+
+                // ห้ามบังคับตัวแรก ถ้ากำลังเลือก WG
+                spinnerSel = SpinUtil.get_spinner_selected_item(this.profile_spin);
+                if (prof == null && !isWireGuardSelection(spinnerSel)) {
+                    ps = ProfileSource.LIST0;
+                    prof = (Profile) proflist.get(0);
                 }
-                if (prof != null && ps != ProfileSource.PREFERENCES && (UIF_REFLECTED & flags) == 0) {
+
+                if (prof != null
+                        && ps != ProfileSource.PREFERENCES
+                        && (UIF_REFLECTED & flags) == 0) {
                     this.prefs.set_string("profile", prof.get_name());
                     gen_ui_reset_event(true);
                 }
-                if (prof != null && ps != ProfileSource.SPINNER) {
+
+                // ตั้ง spinner เป็นชื่อ OpenVPN เฉพาะเมื่อไม่ได้เลือก WG
+                spinnerSel = SpinUtil.get_spinner_selected_item(this.profile_spin);
+                if (prof != null
+                        && ps != ProfileSource.SPINNER
+                        && !isWireGuardSelection(spinnerSel)
+                        && !isWireGuardSelection(rememberSel)) {
                     SpinUtil.set_spinner_selected_item(this.profile_spin, prof.get_name());
                 }
+
                 if (this.profile_group != null) this.profile_group.setVisibility(View.VISIBLE);
                 if (this.profile_spin != null) this.profile_spin.setEnabled(!active);
-                if (this.profile_edit != null) this.profile_edit.setVisibility(active ? View.GONE : View.VISIBLE);
+                if (this.profile_edit != null) {
+                    this.profile_edit.setVisibility(active ? View.GONE : View.VISIBLE);
+                }
             }
 
-            // ถ้าเลือก WG อยู่ ซ่อนฟอร์ม OpenVPN แล้วโชว์ปุ่มเชื่อมต่ออย่างเดียว
             String currentSel = this.profile_spin != null
                     ? SpinUtil.get_spinner_selected_item(this.profile_spin) : null;
             boolean wgSelected = isWireGuardSelection(currentSel);
 
+            // โหมด WireGuard: ซ่อนฟอร์ม OpenVPN โชว์ปุ่มเชื่อมต่อ
             if (wgSelected && !active) {
-                if (this.post_import_help_blurb != null) this.post_import_help_blurb.setVisibility(View.GONE);
+                if (this.post_import_help_blurb != null) {
+                    this.post_import_help_blurb.setVisibility(View.GONE);
+                }
                 if (this.proxy_group != null) this.proxy_group.setVisibility(View.GONE);
                 if (this.server_group != null) this.server_group.setVisibility(View.GONE);
                 if (this.username_group != null) this.username_group.setVisibility(View.GONE);
@@ -1315,9 +1359,13 @@ private static final String WG_PREFIX = "[WG] ";
                 }
                 EditText focus = null;
                 if (!active && (flags & 32) != 0) {
-                    if (this.post_import_help_blurb != null) this.post_import_help_blurb.setVisibility(View.VISIBLE);
+                    if (this.post_import_help_blurb != null) {
+                        this.post_import_help_blurb.setVisibility(View.VISIBLE);
+                    }
                 } else if (active) {
-                    if (this.post_import_help_blurb != null) this.post_import_help_blurb.setVisibility(View.GONE);
+                    if (this.post_import_help_blurb != null) {
+                        this.post_import_help_blurb.setVisibility(View.GONE);
+                    }
                 }
                 ProxyList proxy_list = get_proxy_list();
                 if (active || proxy_list == null || proxy_list.size() <= 0) {
@@ -1360,7 +1408,8 @@ private static final String WG_PREFIX = "[WG] ";
                         } else {
                             if (this.username_edit != null) {
                                 set_enabled(this.username_edit, true);
-                                String pref_username = this.prefs.get_string_by_profile(prof.get_name(), "username");
+                                String pref_username =
+                                        this.prefs.get_string_by_profile(prof.get_name(), "username");
                                 if (pref_username != null) {
                                     this.username_edit.setText(pref_username);
                                 } else {
@@ -1373,10 +1422,15 @@ private static final String WG_PREFIX = "[WG] ";
                         if (this.username_group != null) this.username_group.setVisibility(View.GONE);
                     }
                     if (pk_pwd_req) {
-                        is_pwd_save = this.prefs.get_boolean_by_profile(prof.get_name(), "pk_password_save", RETAIN_AUTH);
+                        is_pwd_save = this.prefs.get_boolean_by_profile(
+                                prof.get_name(), "pk_password_save", RETAIN_AUTH);
                         saved_pwd = null;
-                        if (this.pk_password_group != null) this.pk_password_group.setVisibility(View.VISIBLE);
-                        if (this.pk_password_save_checkbox != null) this.pk_password_save_checkbox.setChecked(is_pwd_save);
+                        if (this.pk_password_group != null) {
+                            this.pk_password_group.setVisibility(View.VISIBLE);
+                        }
+                        if (this.pk_password_save_checkbox != null) {
+                            this.pk_password_save_checkbox.setChecked(is_pwd_save);
+                        }
                         if (is_pwd_save) {
                             saved_pwd = this.pwds.get("pk", prof.get_name());
                         }
@@ -1386,13 +1440,16 @@ private static final String WG_PREFIX = "[WG] ";
                             focus = this.pk_password_edit;
                         }
                     } else {
-                        if (this.pk_password_group != null) this.pk_password_group.setVisibility(View.GONE);
+                        if (this.pk_password_group != null) {
+                            this.pk_password_group.setVisibility(View.GONE);
+                        }
                     }
                     if (autologin || dynamic_challenge) {
                         if (this.password_group != null) this.password_group.setVisibility(View.GONE);
                     } else {
                         boolean is_auth_pw_save = prof.get_allow_password_save();
-                        is_pwd_save = (is_auth_pw_save && this.prefs.get_boolean_by_profile(prof.get_name(), "auth_password_save", RETAIN_AUTH));
+                        is_pwd_save = (is_auth_pw_save && this.prefs.get_boolean_by_profile(
+                                prof.get_name(), "auth_password_save", RETAIN_AUTH));
                         saved_pwd = null;
                         if (this.password_group != null) this.password_group.setVisibility(View.VISIBLE);
                         if (this.password_save_checkbox != null) {
@@ -1421,9 +1478,11 @@ private static final String WG_PREFIX = "[WG] ";
                     if (chal.get_response_required()) {
                         if (this.response_edit != null) {
                             if (chal.get_echo()) {
-                                this.response_edit.setTransformationMethod(SingleLineTransformationMethod.getInstance());
+                                this.response_edit.setTransformationMethod(
+                                        SingleLineTransformationMethod.getInstance());
                             } else {
-                                this.response_edit.setTransformationMethod(PasswordTransformationMethod.getInstance());
+                                this.response_edit.setTransformationMethod(
+                                        PasswordTransformationMethod.getInstance());
                             }
                             this.response_edit.setVisibility(View.VISIBLE);
                         }
@@ -1442,20 +1501,30 @@ private static final String WG_PREFIX = "[WG] ";
                 if (this.status_view != null) this.status_view.setVisibility(View.VISIBLE);
 
                 if (orig_active) {
-                    if (this.conn_details_group != null) this.conn_details_group.setVisibility(View.VISIBLE);
+                    if (this.conn_details_group != null) {
+                        this.conn_details_group.setVisibility(View.VISIBLE);
+                    }
                     if (this.connect_button != null) this.connect_button.setVisibility(View.GONE);
-                    if (this.disconnect_button != null) this.disconnect_button.setVisibility(View.VISIBLE);
+                    if (this.disconnect_button != null) {
+                        this.disconnect_button.setVisibility(View.VISIBLE);
+                    }
                 } else {
-                    if (this.conn_details_group != null) this.conn_details_group.setVisibility(View.GONE);
+                    if (this.conn_details_group != null) {
+                        this.conn_details_group.setVisibility(View.GONE);
+                    }
                     if (this.connect_button != null) this.connect_button.setVisibility(View.VISIBLE);
-                    if (this.disconnect_button != null) this.disconnect_button.setVisibility(View.GONE);
+                    if (this.disconnect_button != null) {
+                        this.disconnect_button.setVisibility(View.GONE);
+                    }
                 }
                 if (focus != null) {
                     autostart = RETAIN_AUTH;
                 }
                 req_focus(focus);
             } else {
-                if (this.post_import_help_blurb != null) this.post_import_help_blurb.setVisibility(View.GONE);
+                if (this.post_import_help_blurb != null) {
+                    this.post_import_help_blurb.setVisibility(View.GONE);
+                }
                 if (this.proxy_group != null) this.proxy_group.setVisibility(View.GONE);
                 if (this.server_group != null) this.server_group.setVisibility(View.GONE);
                 if (this.username_group != null) this.username_group.setVisibility(View.GONE);
@@ -1688,11 +1757,36 @@ private void connectSelectedWireGuard(String displayName) {
         return true;
     }
 
-    @Override
+@Override
     public void onItemSelected(AdapterView<?> parent, View v, int position, long id) {
         cancel_ui_reset();
         int viewid = parent.getId();
         if (viewid == R.id.profile) {
+            String sel = SpinUtil.get_spinner_list_item(this.profile_spin, position);
+            if (sel == null) {
+                sel = SpinUtil.get_spinner_selected_item(this.profile_spin);
+            }
+
+            // เลือกโปรไฟล์ WireGuard — อย่าเรียก ui_setup แบบ OpenVPN (จะเด้งกลับตัวแรก)
+            if (isWireGuardSelection(sel)) {
+                this.prefs.set_string("profile", sel);
+
+                if (this.proxy_group != null) this.proxy_group.setVisibility(View.GONE);
+                if (this.server_group != null) this.server_group.setVisibility(View.GONE);
+                if (this.username_group != null) this.username_group.setVisibility(View.GONE);
+                if (this.pk_password_group != null) this.pk_password_group.setVisibility(View.GONE);
+                if (this.password_group != null) this.password_group.setVisibility(View.GONE);
+                if (this.cr_group != null) this.cr_group.setVisibility(View.GONE);
+                if (this.conn_details_group != null) this.conn_details_group.setVisibility(View.GONE);
+
+                if (!is_active() && !net.openvpn.openvpn.wg.WgController.get(this).isUp()) {
+                    if (this.connect_button != null) this.connect_button.setVisibility(View.VISIBLE);
+                    if (this.disconnect_button != null) this.disconnect_button.setVisibility(View.GONE);
+                }
+                return;
+            }
+
+            // OpenVPN ปกติ
             ui_setup(is_active(), 327680, null);
         } else if (viewid == R.id.proxy) {
             ProxyList proxy_list = get_proxy_list();
@@ -2169,7 +2263,7 @@ private void connectSelectedWireGuard(String displayName) {
     }
     
    
-    private void importWireGuardFromUri(Uri uri) {
+private void importWireGuardFromUri(Uri uri) {
         try {
             String name = "wireguard";
             try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) {
@@ -2199,13 +2293,20 @@ private void connectSelectedWireGuard(String displayName) {
             net.openvpn.openvpn.wg.WgProfileStore.Profile p =
                     store.importConf(name, sb.toString());
 
+            // อัปเดตรายการใน spinner + จำ selection
+            mergeWireGuardIntoProfileSpinner();
+            String display = WG_PREFIX + p.name;
+            this.prefs.set_string("profile", display);
+            if (this.profile_spin != null) {
+                SpinUtil.set_spinner_selected_item(this.profile_spin, display);
+            }
+
             Toast.makeText(this, "นำเข้า WireGuard: " + p.name, Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             Log.e(TAG, "importWireGuardFromUri failed", e);
             Toast.makeText(this, "นำเข้า WG ไม่สำเร็จ: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
-
     private void request_wireguard_file_selection() {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
