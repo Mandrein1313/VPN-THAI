@@ -1643,7 +1643,7 @@ private static final String WG_PREFIX = "[WG] ";
         }
     }
 
-    private void connectSelectedWireGuard(String displayName) {
+private void connectSelectedWireGuard(String displayName) {
         if (displayName == null || !displayName.startsWith(WG_PREFIX)) return;
         String wgName = displayName.substring(WG_PREFIX.length()).trim();
         net.openvpn.openvpn.wg.WgProfileStore store =
@@ -1656,7 +1656,6 @@ private static final String WG_PREFIX = "[WG] ";
         }
         Toast.makeText(this, "ไม่พบโปรไฟล์ WireGuard", Toast.LENGTH_LONG).show();
     }
-
     private void start_connect() {
         cancel_ui_reset();
         Intent intent = VpnService.prepare(this);
