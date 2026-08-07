@@ -39,10 +39,24 @@
                 android:value="vpn" />
         </service>
 
-        <!-- WireGuard -->
+        <!-- WireGuard โครงเดิม (เก็บไว้ได้) -->
         <service
             android:name="net.openvpn.openvpn.wg.WgVpnService"
             android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:foregroundServiceType="specialUse">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
+        </service>
+
+        <!-- จำเป็นสำหรับ GoBackend (เชื่อมต่อ WireGuard จริง) -->
+        <service
+            android:name="com.wireguard.android.backend.GoBackend$VpnService"
+            android:exported="true"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:foregroundServiceType="specialUse">
             <intent-filter>

@@ -1527,7 +1527,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         return super.onOptionsItemSelected(item);
     }
 
-    @Override
+ @Override
     public void onClick(View v) {
         cancel_ui_reset();
         this.autostart_profile_name = null;
@@ -1536,6 +1536,11 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         if (viewid == R.id.connect) {
             start_connect();
         } else if (viewid == R.id.disconnect) {
+            // ถ้า WireGuard กำลังเชื่อมอยู่ ให้ตัด WG ก่อน
+            if (net.openvpn.openvpn.wg.WgController.get(this).isUp()) {
+                disconnectWireGuard();
+                return;
+            }
             submitDisconnectIntent(RETAIN_AUTH);
         } else if (viewid == R.id.profile_edit || viewid == R.id.proxy_edit) {
             openContextMenu(v);
@@ -2148,53 +2153,48 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         launchWgService(p.id, p.confContent);
     }
 
-    private void launchWgService(String profileId, String conf) {
-        Intent i = new Intent(this, net.openvpn.openvpn.wg.WgVpnService.class);
-        i.setAction(net.openvpn.openvpn.wg.WgVpnService.ACTION_CONNECT);
-        i.putExtra(net.openvpn.openvpn.wg.WgVpnService.EXTRA_PROFILE_ID, profileId);
-        i.putExtra(net.openvpn.openvpn.wg.WgVpnService.EXTRA_CONF, conf);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(i);
-        } else {
-            startService(i);
-        }
-        Toast.makeText(this, "เริ่ม WireGuard: " + profileId, Toast.LENGTH_SHORT).show();
-    }
-
-    private TextView last_visible_edittext() {
-        for (int i = 0; i < this.textgroups.length; i++) {
-            if (this.textgroups[i].getVisibility() == View.VISIBLE) {
-                return this.textviews[i];
+private void launchWgService(String profileId, String conf) {
+        // อย่าให้ OpenVPN ค้างซ้อน
+        try {
+            if (is_active()) {
+                submitDisconnectIntent(RETAIN_AUTH);
             }
-        }
-        return null;
-    }
+        } catch (Exception ignored) {}
 
-    @Override
-    public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-        if (v != last_visible_edittext()) {
-            return RETAIN_AUTH;
-        }
-        if (action_enter(actionId, event) && this.connect_button.getVisibility() == View.VISIBLE) {
-            onClick(this.connect_button);
-        }
-        return true;
-    }
-
-    private void req_focus(EditText editText) {
-        boolean auto_keyboard = this.prefs.get_boolean("auto_keyboard", RETAIN_AUTH);
-        if (editText != null) {
-            editText.requestFocus();
-            if (auto_keyboard) {
-                raise_keyboard(editText);
-                return;
+        new Thread(() -> {
+            try {
+                net.openvpn.openvpn.wg.WgController.get(this).connect(profileId, conf);
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "WireGuard เชื่อมต่อแล้ว", Toast.LENGTH_SHORT).show();
+                    if (status_view != null) {
+                        status_view.setText("WireGuard: เชื่อมต่อแล้ว");
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "WG connect failed", e);
+                runOnUiThread(() ->
+                        Toast.makeText(this, "WireGuard ผิดพลาด: " + e.getMessage(), Toast.LENGTH_LONG).show()
+                );
             }
-            return;
-        }
-        this.main_scroll_view.requestFocus();
-        if (auto_keyboard) {
-            dismiss_keyboard();
-        }
+        }).start();
+    }
+
+    private void disconnectWireGuard() {
+        new Thread(() -> {
+            try {
+                net.openvpn.openvpn.wg.WgController.get(this).disconnect();
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "ตัด WireGuard แล้ว", Toast.LENGTH_SHORT).show();
+                    if (status_view != null) {
+                        status_view.setText("VPN: ตัดการเชื่อมต่อ");
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "ตัด WG ไม่สำเร็จ: " + e.getMessage(), Toast.LENGTH_LONG).show()
+                );
+            }
+        }).start();
     }
 
     private void raise_keyboard(EditText editText) {
