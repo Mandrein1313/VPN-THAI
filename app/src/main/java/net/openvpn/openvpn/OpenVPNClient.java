@@ -2349,34 +2349,6 @@ private void importWireGuardFromUri(Uri uri) {
         }
     }
     
-    private void showWireGuardProfilesDialog() {
-        net.openvpn.openvpn.wg.WgProfileStore store =
-                new net.openvpn.openvpn.wg.WgProfileStore(this);
-        java.util.List<net.openvpn.openvpn.wg.WgProfileStore.Profile> list = store.list();
-
-        if (list.isEmpty()) {
-            Toast.makeText(this,
-                    "ยังไม่มีโปรไฟล์ WireGuard\nกด + เพื่อนำเข้า .conf",
-                    Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        final String[] names = new String[list.size()];
-        for (int i = 0; i < list.size(); i++) {
-            names[i] = list.get(i).name;
-        }
-
-        new AlertDialog.Builder(this)
-                .setTitle("โปรไฟล์ WireGuard")
-                .setItems(names, (dialog, which) -> {
-                    net.openvpn.openvpn.wg.WgProfileStore.Profile p = list.get(which);
-                    startWireGuardConnect(p);
-                })
-                .setNegativeButton("ปิด", null)
-                .setNeutralButton("นำเข้าเพิ่ม", (d, w) -> request_wireguard_file_selection())
-                .show();
-    }
-
     private void startWireGuardConnect(net.openvpn.openvpn.wg.WgProfileStore.Profile p) {
         Intent prepare = VpnService.prepare(this);
         if (prepare != null) {
@@ -2619,27 +2591,23 @@ private TextView last_visible_edittext() {
         }
 
 View fabMenu = findViewById(R.id.fab_menu);
-        if (fabMenu != null) {
-            fabMenu.setOnClickListener(v -> {
-                new AlertDialog.Builder(this)
-                        .setTitle("นำเข้า / WireGuard")
-                        .setItems(new String[]{
-                                "นำเข้า OpenVPN (.ovpn)",
-                                "นำเข้า WireGuard (.conf)",
-                                "รายการ WireGuard"
-                        }, (d, which) -> {
-                            if (which == 0) {
-                                request_file_selection_dialog(S_ONSTART_CALLED);
-                            } else if (which == 1) {
-                                request_wireguard_file_selection();
-                            } else {
-                                showWireGuardProfilesDialog();
-                            }
-                        })
-                        .show();
-            });
-        }
-
+if (fabMenu != null) {
+    fabMenu.setOnClickListener(v -> {
+        new AlertDialog.Builder(this)
+                .setTitle("นำเข้า / WireGuard")
+                .setItems(new String[]{
+                        "นำเข้า OpenVPN (.ovpn)",
+                        "นำเข้า WireGuard (.conf)"
+                }, (d, which) -> {
+                    if (which == 0) {
+                        request_file_selection_dialog(S_ONSTART_CALLED);
+                    } else if (which == 1) {
+                        request_wireguard_file_selection();
+                    }
+                })
+                .show();
+    });
+}
         if (this.button_group != null) {
             this.button_group.setVisibility(View.VISIBLE);
         }
