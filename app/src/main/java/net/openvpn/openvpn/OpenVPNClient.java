@@ -83,6 +83,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
     private static final int REQUEST_IMPORT_PROFILE = 2;
     private static final int REQUEST_VPN_ACTOR_RIGHTS = 1;
     private static final int REQUEST_IMPORT_WIREGUARD = 2101;
+    private static final String WG_PREFIX = "[WG] ";
     private static final boolean RETAIN_AUTH = false;
     private static final int S_BIND_CALLED = 1;
     private static final int S_ONSTART_CALLED = 2;
@@ -1168,7 +1169,7 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         if (this.response_edit != null) this.response_edit.setText("");
     }
 
-private static final String WG_PREFIX = "[WG] ";
+
 
     private void mergeWireGuardIntoProfileSpinner() {
         if (this.profile_spin == null) return;
@@ -2261,8 +2262,6 @@ private void connectSelectedWireGuard(String displayName) {
             return null;
         }
     }
-    
-   
 private void importWireGuardFromUri(Uri uri) {
         try {
             String name = "wireguard";
