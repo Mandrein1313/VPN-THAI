@@ -1885,79 +1885,93 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
     }
 
 @Override
-protected void onActivityResult(int request, int result, Intent data) {
-    Log.d(TAG, String.format("CLI: onActivityResult request=%d result=%d", request, result));
-    String path;
-    switch (request) {
-        case S_BIND_CALLED:
-            if (result == RESULT_OK) {
-                resolve_epki_alias_then_connect();
-                return;
-            } else if (result != RESULT_CANCELED) {
-                return;
-            } else {
-                if (this.finish_on_connect == FinishOnConnect.ENABLED) {
-                    finish();
+    protected void onActivityResult(int request, int result, Intent data) {
+        Log.d(TAG, String.format("CLI: onActivityResult request=%d result=%d", request, result));
+        String path;
+        switch (request) {
+            case S_BIND_CALLED:
+                if (result == RESULT_OK) {
+                    resolve_epki_alias_then_connect();
                     return;
-                } else if (this.finish_on_connect == FinishOnConnect.ENABLED_ACROSS_ONSTART) {
-                    this.finish_on_connect = FinishOnConnect.ENABLED;
-                    start_connect();
+                } else if (result != RESULT_CANCELED) {
                     return;
                 } else {
+                    if (this.finish_on_connect == FinishOnConnect.ENABLED) {
+                        finish();
+                        return;
+                    } else if (this.finish_on_connect == FinishOnConnect.ENABLED_ACROSS_ONSTART) {
+                        this.finish_on_connect = FinishOnConnect.ENABLED;
+                        start_connect();
+                        return;
+                    } else {
+                        return;
+                    }
+                }
+
+            case REQUEST_IMPORT_PROFILE_SAF:
+                if (result == RESULT_OK && data != null && data.getData() != null) {
+                    importProfileFromUri(data.getData());
+                }
+                return;
+
+            case REQUEST_IMPORT_PKCS12_SAF:
+                if (result == RESULT_OK && data != null && data.getData() != null) {
+                    path = copyUriToCache(data.getData(), "import.p12");
+                    if (path != null) {
+                        import_pkcs12(path);
+                    } else {
+                        Toast.makeText(this, "ไม่สามารถอ่านไฟล์ PKCS12 ได้", Toast.LENGTH_LONG).show();
+                    }
+                }
+                return;
+
+            case S_ONSTART_CALLED:
+                if (result == RESULT_OK && data != null) {
+                    path = data.getStringExtra(FileDialog.RESULT_PATH);
+                    Log.d(TAG, String.format("CLI: IMPORT_PROFILE: %s", path));
+                    if (path != null) {
+                        import_profile(path);
+                    }
                     return;
                 }
-            }
+                return;
 
-        case REQUEST_IMPORT_PROFILE_SAF:
-            if (result == RESULT_OK && data != null && data.getData() != null) {
-                importProfileFromUri(data.getData());
-            }
-            return;
+            case REQUEST_IMPORT_PKCS12:
+                if (result == RESULT_OK && data != null) {
+                    path = data.getStringExtra(FileDialog.RESULT_PATH);
+                    Log.d(TAG, String.format("CLI: IMPORT_PKCS12: %s", path));
+                    if (path != null) {
+                        import_pkcs12(path);
+                    }
+                    return;
+                }
+                return;
 
-        case REQUEST_IMPORT_PKCS12_SAF:
-            if (result == RESULT_OK && data != null && data.getData() != null) {
-                path = copyUriToCache(data.getData(), "import.p12");
-                if (path != null) {
-                    import_pkcs12(path);
+            case REQUEST_IMPORT_WIREGUARD:
+                if (result == RESULT_OK && data != null && data.getData() != null) {
+                    importWireGuardFromUri(data.getData());
+                }
+                return;
+
+            case 2102: // VPN permission สำหรับ WireGuard
+                if (result == RESULT_OK) {
+                    SharedPreferences sp = getSharedPreferences("wg_tmp", MODE_PRIVATE);
+                    String id = sp.getString("pending_id", null);
+                    String conf = sp.getString("pending_conf", null);
+                    sp.edit().clear().apply();
+                    if (id != null && conf != null) {
+                        launchWgService(id, conf);
+                    }
                 } else {
-                    Toast.makeText(this, "ไม่สามารถอ่านไฟล์ PKCS12 ได้", Toast.LENGTH_LONG).show();
-                }
-            }
-            return;
-
-        case S_ONSTART_CALLED:
-            if (result == RESULT_OK && data != null) {
-                path = data.getStringExtra(FileDialog.RESULT_PATH);
-                Log.d(TAG, String.format("CLI: IMPORT_PROFILE: %s", path));
-                if (path != null) {
-                    import_profile(path);
+                    Toast.makeText(this, "ไม่ได้รับอนุญาต VPN", Toast.LENGTH_LONG).show();
                 }
                 return;
-            }
-            return;
 
-        case REQUEST_IMPORT_PKCS12:
-            if (result == RESULT_OK && data != null) {
-                path = data.getStringExtra(FileDialog.RESULT_PATH);
-                Log.d(TAG, String.format("CLI: IMPORT_PKCS12: %s", path));
-                if (path != null) {
-                    import_pkcs12(path);
-                }
+            default:
+                super.onActivityResult(request, result, data);
                 return;
-            }
-            return;
-
-        case REQUEST_IMPORT_WIREGUARD:  // ✅ เพิ่มตรงนี้
-            if (result == RESULT_OK && data != null && data.getData() != null) {
-                importWireGuardFromUri(data.getData());
-            }
-            return;
-
-        default:
-            super.onActivityResult(request, result, data);
-            return;
+        }
     }
-}
 
     private void importProfileFromUri(Uri uri) {
         try {
@@ -2090,6 +2104,61 @@ protected void onActivityResult(int request, int result, Intent data) {
         } catch (ActivityNotFoundException e) {
             Toast.makeText(this, "ไม่พบแอปเลือกไฟล์", Toast.LENGTH_LONG).show();
         }
+    }
+    
+    private void showWireGuardProfilesDialog() {
+        net.openvpn.openvpn.wg.WgProfileStore store =
+                new net.openvpn.openvpn.wg.WgProfileStore(this);
+        java.util.List<net.openvpn.openvpn.wg.WgProfileStore.Profile> list = store.list();
+
+        if (list.isEmpty()) {
+            Toast.makeText(this,
+                    "ยังไม่มีโปรไฟล์ WireGuard\nกด + เพื่อนำเข้า .conf",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        final String[] names = new String[list.size()];
+        for (int i = 0; i < list.size(); i++) {
+            names[i] = list.get(i).name;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("โปรไฟล์ WireGuard")
+                .setItems(names, (dialog, which) -> {
+                    net.openvpn.openvpn.wg.WgProfileStore.Profile p = list.get(which);
+                    startWireGuardConnect(p);
+                })
+                .setNegativeButton("ปิด", null)
+                .setNeutralButton("นำเข้าเพิ่ม", (d, w) -> request_wireguard_file_selection())
+                .show();
+    }
+
+    private void startWireGuardConnect(net.openvpn.openvpn.wg.WgProfileStore.Profile p) {
+        Intent prepare = VpnService.prepare(this);
+        if (prepare != null) {
+            getSharedPreferences("wg_tmp", MODE_PRIVATE)
+                    .edit()
+                    .putString("pending_id", p.id)
+                    .putString("pending_conf", p.confContent)
+                    .apply();
+            startActivityForResult(prepare, 2102);
+            return;
+        }
+        launchWgService(p.id, p.confContent);
+    }
+
+    private void launchWgService(String profileId, String conf) {
+        Intent i = new Intent(this, net.openvpn.openvpn.wg.WgVpnService.class);
+        i.setAction(net.openvpn.openvpn.wg.WgVpnService.ACTION_CONNECT);
+        i.putExtra(net.openvpn.openvpn.wg.WgVpnService.EXTRA_PROFILE_ID, profileId);
+        i.putExtra(net.openvpn.openvpn.wg.WgVpnService.EXTRA_CONF, conf);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(i);
+        } else {
+            startService(i);
+        }
+        Toast.makeText(this, "เริ่ม WireGuard: " + profileId, Toast.LENGTH_SHORT).show();
     }
 
     private TextView last_visible_edittext() {
@@ -2243,11 +2312,26 @@ protected void onActivityResult(int request, int result, Intent data) {
         }
 
 View fabMenu = findViewById(R.id.fab_menu);
-if (fabMenu != null) {
-    fabMenu.setOnClickListener(v -> {
-        request_wireguard_file_selection();
-    });
-}
+        if (fabMenu != null) {
+            fabMenu.setOnClickListener(v -> {
+                new AlertDialog.Builder(this)
+                        .setTitle("นำเข้า / WireGuard")
+                        .setItems(new String[]{
+                                "นำเข้า OpenVPN (.ovpn)",
+                                "นำเข้า WireGuard (.conf)",
+                                "รายการ WireGuard"
+                        }, (d, which) -> {
+                            if (which == 0) {
+                                request_file_selection_dialog(S_ONSTART_CALLED);
+                            } else if (which == 1) {
+                                request_wireguard_file_selection();
+                            } else {
+                                showWireGuardProfilesDialog();
+                            }
+                        })
+                        .show();
+            });
+        }
 
         if (this.button_group != null) {
             this.button_group.setVisibility(View.VISIBLE);
