@@ -1031,7 +1031,9 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         }
         return RETAIN_AUTH;
     }
-
+private boolean isVpnActive() {
+    return is_active() || net.openvpn.openvpn.wg.WgController.get(this).isUp();
+}
     private void cancel_ui_reset() {
         this.ui_reset_timer_handler.removeCallbacks(this.ui_reset_timer_task);
     }
@@ -1330,12 +1332,17 @@ private void ui_setup(boolean active, int flags, String profile_override) {
                 }
             }
 
-            String currentSel = this.profile_spin != null
+String currentSel = this.profile_spin != null
                     ? SpinUtil.get_spinner_selected_item(this.profile_spin) : null;
             boolean wgSelected = isWireGuardSelection(currentSel);
 
-            // โหมด WireGuard: ซ่อนฟอร์ม OpenVPN โชว์ปุ่มเชื่อมต่อ
-            if (wgSelected && !active) {
+            // โหมด WireGuard: ซ่อนฟอร์ม OpenVPN และจัดการปุ่ม Connect/Disconnect ตามสถานะจริง
+            if (wgSelected) {
+                boolean wgUp = false;
+                try {
+                    wgUp = net.openvpn.openvpn.wg.WgController.get(this).isUp();
+                } catch (Exception ignored) {}
+
                 if (this.post_import_help_blurb != null) {
                     this.post_import_help_blurb.setVisibility(View.GONE);
                 }
@@ -1345,11 +1352,26 @@ private void ui_setup(boolean active, int flags, String profile_override) {
                 if (this.pk_password_group != null) this.pk_password_group.setVisibility(View.GONE);
                 if (this.password_group != null) this.password_group.setVisibility(View.GONE);
                 if (this.cr_group != null) this.cr_group.setVisibility(View.GONE);
-                if (this.conn_details_group != null) this.conn_details_group.setVisibility(View.GONE);
+
                 if (this.button_group != null) this.button_group.setVisibility(View.VISIBLE);
-                if (this.connect_button != null) this.connect_button.setVisibility(View.VISIBLE);
-                if (this.disconnect_button != null) this.disconnect_button.setVisibility(View.GONE);
                 if (this.status_view != null) this.status_view.setVisibility(View.VISIBLE);
+
+                if (wgUp) {
+                    // กำลังเชื่อมต่อ WireGuard → โชว์ปุ่มตัดการเชื่อมต่อ
+                    if (this.conn_details_group != null) this.conn_details_group.setVisibility(View.VISIBLE);
+                    if (this.connect_button != null) this.connect_button.setVisibility(View.GONE);
+                    if (this.disconnect_button != null) this.disconnect_button.setVisibility(View.VISIBLE);
+                    if (this.profile_spin != null) this.profile_spin.setEnabled(false);
+                    if (this.profile_edit != null) this.profile_edit.setVisibility(View.GONE);
+                } else {
+                    // ยังไม่เชื่อมต่อ → โชว์ปุ่มเชื่อมต่อ
+                    if (this.conn_details_group != null) this.conn_details_group.setVisibility(View.GONE);
+                    if (this.connect_button != null) this.connect_button.setVisibility(View.VISIBLE);
+                    if (this.disconnect_button != null) this.disconnect_button.setVisibility(View.GONE);
+                    if (this.profile_spin != null) this.profile_spin.setEnabled(true);
+                    if (this.profile_edit != null) this.profile_edit.setVisibility(View.VISIBLE);
+                }
+
                 this.last_active = orig_active;
                 return;
             }
@@ -1687,31 +1709,38 @@ private void ui_setup(boolean active, int flags, String profile_override) {
     }
 
 @Override
-    public void onClick(View v) {
-        cancel_ui_reset();
-        this.autostart_profile_name = null;
-        this.finish_on_connect = FinishOnConnect.DISABLED;
-        int viewid = v.getId();
-        if (viewid == R.id.connect) {
-            String selected = null;
-            if (this.profile_spin != null && this.profile_spin.getSelectedItem() != null) {
-                selected = this.profile_spin.getSelectedItem().toString();
-            }
-            if (isWireGuardSelection(selected)) {
-                connectSelectedWireGuard(selected);
-            } else {
-                start_connect();
-            }
-        } else if (viewid == R.id.disconnect) {
-            if (net.openvpn.openvpn.wg.WgController.get(this).isUp()) {
-                disconnectWireGuard();
-                return;
-            }
-            submitDisconnectIntent(RETAIN_AUTH);
-        } else if (viewid == R.id.profile_edit || viewid == R.id.proxy_edit) {
-            openContextMenu(v);
+public void onClick(View v) {
+    cancel_ui_reset();
+    this.autostart_profile_name = null;
+    this.finish_on_connect = FinishOnConnect.DISABLED;
+    
+    int viewid = v.getId();
+    
+    if (viewid == R.id.connect) {
+        String selected = null;
+        if (this.profile_spin != null && this.profile_spin.getSelectedItem() != null) {
+            selected = this.profile_spin.getSelectedItem().toString();
         }
+        
+        if (isWireGuardSelection(selected)) {
+            connectSelectedWireGuard(selected);
+        } else {
+            start_connect();
+        }
+        
+    } else if (viewid == R.id.disconnect) {
+        // เช็คว่าเป็น WireGuard ที่กำลังเชื่อมอยู่หรือไม่
+        if (net.openvpn.openvpn.wg.WgController.get(this).isUp()) {
+            disconnectWireGuard();
+        } else {
+            // เป็น OpenVPN
+            submitDisconnectIntent(RETAIN_AUTH);
+        }
+        
+    } else if (viewid == R.id.profile_edit || viewid == R.id.proxy_edit) {
+        openContextMenu(v);
     }
+}
 
 private void connectSelectedWireGuard(String displayName) {
         if (displayName == null || !displayName.startsWith(WG_PREFIX)) return;
@@ -2363,49 +2392,72 @@ private void importWireGuardFromUri(Uri uri) {
     }
 
 private void launchWgService(String profileId, String conf) {
-        // อย่าให้ OpenVPN ค้างซ้อน
+    // อย่าให้ OpenVPN ค้างซ้อน
+    try {
+        if (is_active()) {
+            submitDisconnectIntent(RETAIN_AUTH);
+        }
+    } catch (Exception ignored) {}
+
+    new Thread(() -> {
         try {
-            if (is_active()) {
-                submitDisconnectIntent(RETAIN_AUTH);
-            }
-        } catch (Exception ignored) {}
+            net.openvpn.openvpn.wg.WgController.get(this).connect(profileId, conf);
+            runOnUiThread(() -> {
+                Toast.makeText(this, "WireGuard เชื่อมต่อแล้ว", Toast.LENGTH_SHORT).show();
+                if (status_view != null) {
+                    status_view.setText("WireGuard: เชื่อมต่อแล้ว");
+                }
+                // สำคัญ: บังคับอัปเดตปุ่ม
+                updateButtonsForVpnState(true);
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "WG connect failed", e);
+            runOnUiThread(() ->
+                    Toast.makeText(this, "WireGuard ผิดพลาด: " + e.getMessage(), Toast.LENGTH_LONG).show()
+            );
+        }
+    }).start();
+}
 
-        new Thread(() -> {
-            try {
-                net.openvpn.openvpn.wg.WgController.get(this).connect(profileId, conf);
-                runOnUiThread(() -> {
-                    Toast.makeText(this, "WireGuard เชื่อมต่อแล้ว", Toast.LENGTH_SHORT).show();
-                    if (status_view != null) {
-                        status_view.setText("WireGuard: เชื่อมต่อแล้ว");
-                    }
-                });
-            } catch (Exception e) {
-                Log.e(TAG, "WG connect failed", e);
-                runOnUiThread(() ->
-                        Toast.makeText(this, "WireGuard ผิดพลาด: " + e.getMessage(), Toast.LENGTH_LONG).show()
-                );
-            }
-        }).start();
+private void disconnectWireGuard() {
+    new Thread(() -> {
+        try {
+            net.openvpn.openvpn.wg.WgController.get(this).disconnect();
+            runOnUiThread(() -> {
+                Toast.makeText(this, "ตัด WireGuard แล้ว", Toast.LENGTH_SHORT).show();
+                if (status_view != null) {
+                    status_view.setText("VPN: ตัดการเชื่อมต่อ");
+                }
+                // อัปเดตปุ่มทันที
+                updateButtonsForVpnState(false);
+            });
+        } catch (Exception e) {
+            runOnUiThread(() ->
+                Toast.makeText(this, "ตัด WG ไม่สำเร็จ: " + e.getMessage(), Toast.LENGTH_LONG).show()
+            );
+        }
+    }).start();
+}
+
+private void updateButtonsForVpnState(boolean connected) {
+    if (button_group != null) {
+        button_group.setVisibility(View.VISIBLE);
     }
 
-    private void disconnectWireGuard() {
-        new Thread(() -> {
-            try {
-                net.openvpn.openvpn.wg.WgController.get(this).disconnect();
-                runOnUiThread(() -> {
-                    Toast.makeText(this, "ตัด WireGuard แล้ว", Toast.LENGTH_SHORT).show();
-                    if (status_view != null) {
-                        status_view.setText("VPN: ตัดการเชื่อมต่อ");
-                    }
-                });
-            } catch (Exception e) {
-                runOnUiThread(() ->
-                        Toast.makeText(this, "ตัด WG ไม่สำเร็จ: " + e.getMessage(), Toast.LENGTH_LONG).show()
-                );
-            }
-        }).start();
+    if (connected) {
+        if (connect_button != null) connect_button.setVisibility(View.GONE);
+        if (disconnect_button != null) disconnect_button.setVisibility(View.VISIBLE);
+        if (conn_details_group != null) conn_details_group.setVisibility(View.VISIBLE);
+        if (profile_spin != null) profile_spin.setEnabled(false);
+        if (profile_edit != null) profile_edit.setVisibility(View.GONE);
+    } else {
+        if (connect_button != null) connect_button.setVisibility(View.VISIBLE);
+        if (disconnect_button != null) disconnect_button.setVisibility(View.GONE);
+        if (conn_details_group != null) conn_details_group.setVisibility(View.GONE);
+        if (profile_spin != null) profile_spin.setEnabled(true);
+        if (profile_edit != null) profile_edit.setVisibility(View.VISIBLE);
     }
-
+}
 
 private TextView last_visible_edittext() {
         if (this.textgroups == null || this.textviews == null) return null;
