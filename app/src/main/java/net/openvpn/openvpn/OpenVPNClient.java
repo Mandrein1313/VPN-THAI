@@ -1168,6 +1168,40 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         if (this.response_edit != null) this.response_edit.setText("");
     }
 
+private static final String WG_PREFIX = "[WG] ";
+
+    private void mergeWireGuardIntoProfileSpinner() {
+        if (this.profile_spin == null) return;
+
+        net.openvpn.openvpn.wg.WgProfileStore store =
+                new net.openvpn.openvpn.wg.WgProfileStore(this);
+        java.util.List<net.openvpn.openvpn.wg.WgProfileStore.Profile> wgList = store.list();
+
+        java.util.List<String> items = new java.util.ArrayList<>();
+        android.widget.SpinnerAdapter ad = this.profile_spin.getAdapter();
+        if (ad != null) {
+            for (int i = 0; i < ad.getCount(); i++) {
+                Object o = ad.getItem(i);
+                if (o == null) continue;
+                String s = o.toString();
+                if (!s.startsWith(WG_PREFIX)) {
+                    items.add(s);
+                }
+            }
+        }
+
+        for (net.openvpn.openvpn.wg.WgProfileStore.Profile p : wgList) {
+            items.add(WG_PREFIX + p.name);
+        }
+
+        if (items.isEmpty()) return;
+        SpinUtil.show_spinner(this, this.profile_spin, items.toArray(new String[0]));
+    }
+
+    private boolean isWireGuardSelection(String name) {
+        return name != null && name.startsWith(WG_PREFIX);
+    }
+
     private void ui_setup(boolean active, int flags, String profile_override) {
         boolean orig_active = active;
         boolean autostart = RETAIN_AUTH;
@@ -1182,15 +1216,35 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
             ProfileList proflist = profile_list();
             Profile prof = null;
             if (proflist == null || proflist.size() <= 0) {
-                if (this.profile_group != null) this.profile_group.setVisibility(View.GONE);
+                // ไม่มี OpenVPN — ยังโชว์ WG ถ้ามี
+                if (this.profile_spin != null) {
+                    java.util.List<String> onlyWg = new java.util.ArrayList<>();
+                    net.openvpn.openvpn.wg.WgProfileStore store =
+                            new net.openvpn.openvpn.wg.WgProfileStore(this);
+                    for (net.openvpn.openvpn.wg.WgProfileStore.Profile p : store.list()) {
+                        onlyWg.add(WG_PREFIX + p.name);
+                    }
+                    if (!onlyWg.isEmpty()) {
+                        SpinUtil.show_spinner(this, this.profile_spin, onlyWg.toArray(new String[0]));
+                        if (this.profile_group != null) this.profile_group.setVisibility(View.VISIBLE);
+                        if (this.profile_spin != null) this.profile_spin.setEnabled(!active);
+                        if (this.profile_edit != null) this.profile_edit.setVisibility(active ? View.GONE : View.VISIBLE);
+                    } else {
+                        if (this.profile_group != null) this.profile_group.setVisibility(View.GONE);
+                    }
+                } else {
+                    if (this.profile_group != null) this.profile_group.setVisibility(View.GONE);
+                }
             } else {
                 ProfileSource ps = ProfileSource.UNDEF;
                 SpinUtil.show_spinner(this, this.profile_spin, proflist.profile_names());
+                mergeWireGuardIntoProfileSpinner();
+
                 if (active) {
                     ps = ProfileSource.SERVICE;
                     prof = current_profile();
                 }
-                if (prof == null && profile_override != null) {
+                if (prof == null && profile_override != null && !isWireGuardSelection(profile_override)) {
                     ps = ProfileSource.PRIORITY;
                     prof = proflist.get_profile_by_name(profile_override);
                     if (prof == null) {
@@ -1201,27 +1255,60 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                 if (prof == null) {
                     if ((UIF_PROFILE_SETTING_FROM_SPINNER & flags) != 0) {
                         ps = ProfileSource.SPINNER;
-                        prof = proflist.get_profile_by_name(SpinUtil.get_spinner_selected_item(this.profile_spin));
+                        String sel = SpinUtil.get_spinner_selected_item(this.profile_spin);
+                        if (!isWireGuardSelection(sel)) {
+                            prof = proflist.get_profile_by_name(sel);
+                        }
                     } else {
                         ps = ProfileSource.PREFERENCES;
-                        prof = proflist.get_profile_by_name(this.prefs.get_string("profile"));
+                        String prefProf = this.prefs.get_string("profile");
+                        if (!isWireGuardSelection(prefProf)) {
+                            prof = proflist.get_profile_by_name(prefProf);
+                        }
                     }
                 }
-                if (prof == null) {
-                    ps = ProfileSource.LIST0;
-                    prof = (Profile) proflist.get(0);
+                if (prof == null && !isWireGuardSelection(SpinUtil.get_spinner_selected_item(this.profile_spin))) {
+                    // ถ้าไม่ได้เลือก WG และยังไม่มี prof → ใช้ตัวแรกของ OpenVPN
+                    String sel = SpinUtil.get_spinner_selected_item(this.profile_spin);
+                    if (sel == null || !isWireGuardSelection(sel)) {
+                        ps = ProfileSource.LIST0;
+                        prof = (Profile) proflist.get(0);
+                    }
                 }
-                if (ps != ProfileSource.PREFERENCES && (UIF_REFLECTED & flags) == 0) {
+                if (prof != null && ps != ProfileSource.PREFERENCES && (UIF_REFLECTED & flags) == 0) {
                     this.prefs.set_string("profile", prof.get_name());
                     gen_ui_reset_event(true);
                 }
-                if (ps != ProfileSource.SPINNER) {
+                if (prof != null && ps != ProfileSource.SPINNER) {
                     SpinUtil.set_spinner_selected_item(this.profile_spin, prof.get_name());
                 }
                 if (this.profile_group != null) this.profile_group.setVisibility(View.VISIBLE);
                 if (this.profile_spin != null) this.profile_spin.setEnabled(!active);
                 if (this.profile_edit != null) this.profile_edit.setVisibility(active ? View.GONE : View.VISIBLE);
             }
+
+            // ถ้าเลือก WG อยู่ ซ่อนฟอร์ม OpenVPN แล้วโชว์ปุ่มเชื่อมต่ออย่างเดียว
+            String currentSel = this.profile_spin != null
+                    ? SpinUtil.get_spinner_selected_item(this.profile_spin) : null;
+            boolean wgSelected = isWireGuardSelection(currentSel);
+
+            if (wgSelected && !active) {
+                if (this.post_import_help_blurb != null) this.post_import_help_blurb.setVisibility(View.GONE);
+                if (this.proxy_group != null) this.proxy_group.setVisibility(View.GONE);
+                if (this.server_group != null) this.server_group.setVisibility(View.GONE);
+                if (this.username_group != null) this.username_group.setVisibility(View.GONE);
+                if (this.pk_password_group != null) this.pk_password_group.setVisibility(View.GONE);
+                if (this.password_group != null) this.password_group.setVisibility(View.GONE);
+                if (this.cr_group != null) this.cr_group.setVisibility(View.GONE);
+                if (this.conn_details_group != null) this.conn_details_group.setVisibility(View.GONE);
+                if (this.button_group != null) this.button_group.setVisibility(View.VISIBLE);
+                if (this.connect_button != null) this.connect_button.setVisibility(View.VISIBLE);
+                if (this.disconnect_button != null) this.disconnect_button.setVisibility(View.GONE);
+                if (this.status_view != null) this.status_view.setVisibility(View.VISIBLE);
+                this.last_active = orig_active;
+                return;
+            }
+
             if (prof != null) {
                 if ((UIF_RESET & flags) != 0) {
                     prof.reset_dynamic_challenge();
@@ -1350,10 +1437,10 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                         schedule_ui_reset(prof.get_dynamic_challenge_expire_delay());
                     }
                 }
-                
+
                 if (this.button_group != null) this.button_group.setVisibility(View.VISIBLE);
                 if (this.status_view != null) this.status_view.setVisibility(View.VISIBLE);
-                
+
                 if (orig_active) {
                     if (this.conn_details_group != null) this.conn_details_group.setVisibility(View.VISIBLE);
                     if (this.connect_button != null) this.connect_button.setVisibility(View.GONE);
@@ -1376,13 +1463,15 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
                 if (this.password_group != null) this.password_group.setVisibility(View.GONE);
                 if (this.cr_group != null) this.cr_group.setVisibility(View.GONE);
                 if (this.conn_details_group != null) this.conn_details_group.setVisibility(View.GONE);
-                
+
                 if (this.button_group != null) this.button_group.setVisibility(View.VISIBLE);
                 if (this.connect_button != null) this.connect_button.setVisibility(View.VISIBLE);
                 if (this.disconnect_button != null) this.disconnect_button.setVisibility(View.GONE);
-                
-                show_status_icon(R.drawable.info);
-                show_status(R.string.no_profiles_loaded);
+
+                if (!wgSelected) {
+                    show_status_icon(R.drawable.info);
+                    show_status(R.string.no_profiles_loaded);
+                }
             }
             if (orig_active) {
                 schedule_stats();
@@ -1527,16 +1616,23 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         return super.onOptionsItemSelected(item);
     }
 
- @Override
+@Override
     public void onClick(View v) {
         cancel_ui_reset();
         this.autostart_profile_name = null;
         this.finish_on_connect = FinishOnConnect.DISABLED;
         int viewid = v.getId();
         if (viewid == R.id.connect) {
-            start_connect();
+            String selected = null;
+            if (this.profile_spin != null && this.profile_spin.getSelectedItem() != null) {
+                selected = this.profile_spin.getSelectedItem().toString();
+            }
+            if (isWireGuardSelection(selected)) {
+                connectSelectedWireGuard(selected);
+            } else {
+                start_connect();
+            }
         } else if (viewid == R.id.disconnect) {
-            // ถ้า WireGuard กำลังเชื่อมอยู่ ให้ตัด WG ก่อน
             if (net.openvpn.openvpn.wg.WgController.get(this).isUp()) {
                 disconnectWireGuard();
                 return;
@@ -1545,6 +1641,20 @@ public class OpenVPNClient extends OpenVPNClientBase implements OnRequestPermiss
         } else if (viewid == R.id.profile_edit || viewid == R.id.proxy_edit) {
             openContextMenu(v);
         }
+    }
+
+    private void connectSelectedWireGuard(String displayName) {
+        if (displayName == null || !displayName.startsWith(WG_PREFIX)) return;
+        String wgName = displayName.substring(WG_PREFIX.length()).trim();
+        net.openvpn.openvpn.wg.WgProfileStore store =
+                new net.openvpn.openvpn.wg.WgProfileStore(this);
+        for (net.openvpn.openvpn.wg.WgProfileStore.Profile p : store.list()) {
+            if (wgName.equals(p.name)) {
+                startWireGuardConnect(p);
+                return;
+            }
+        }
+        Toast.makeText(this, "ไม่พบโปรไฟล์ WireGuard", Toast.LENGTH_LONG).show();
     }
 
     private void start_connect() {
