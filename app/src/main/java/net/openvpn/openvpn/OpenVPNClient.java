@@ -2215,6 +2215,69 @@ private void launchWgService(String profileId, String conf) {
         }
     }
 
+private TextView last_visible_edittext() {
+        if (this.textgroups == null || this.textviews == null) return null;
+        for (int i = 0; i < this.textgroups.length; i++) {
+            if (this.textgroups[i] != null
+                    && this.textgroups[i].getVisibility() == View.VISIBLE
+                    && this.textviews[i] != null) {
+                return this.textviews[i];
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+        if (v != last_visible_edittext()) {
+            return false;
+        }
+        if (action_enter(actionId, event)
+                && this.connect_button != null
+                && this.connect_button.getVisibility() == View.VISIBLE) {
+            onClick(this.connect_button);
+        }
+        return true;
+    }
+
+    private void req_focus(EditText editText) {
+        boolean auto_keyboard = this.prefs != null
+                && this.prefs.get_boolean("auto_keyboard", false);
+        if (editText != null) {
+            editText.requestFocus();
+            if (auto_keyboard) {
+                raise_keyboard(editText);
+            }
+            return;
+        }
+        if (this.main_scroll_view != null) {
+            this.main_scroll_view.requestFocus();
+        }
+        if (auto_keyboard) {
+            dismiss_keyboard();
+        }
+    }
+
+    private void raise_keyboard(EditText editText) {
+        InputMethodManager mgr =
+                (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (mgr != null && editText != null) {
+            mgr.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT);
+        }
+    }
+
+    private void dismiss_keyboard() {
+        InputMethodManager mgr =
+                (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (mgr != null && this.textviews != null) {
+            for (TextView tv : this.textviews) {
+                if (tv != null) {
+                    mgr.hideSoftInputFromWindow(tv.getWindowToken(), 0);
+                }
+            }
+        }
+    }
+
     private void load_ui_elements() {
         this.main_scroll_view = (ScrollView) findViewById(R.id.main_scroll_view);
         this.post_import_help_blurb = findViewById(R.id.post_import_help_blurb);
