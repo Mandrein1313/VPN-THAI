@@ -1306,18 +1306,20 @@ public class OpenVPNService extends VpnService implements Handler.Callback, net.
                 profile.name, username, proxy_context != null ? proxy_context.name() : "undef",
                 server, proto, ipv6, conn_timeout, response, epki_alias, compression_mode));
 
-        this.current_profile = profile;
-        set_autostart_profile_name(profile.get_name());
-        start_notification();
-        gen_event(GCI_REQ_ESTABLISH, "CORE_THREAD_ACTIVE", null);
+      this.current_profile = profile;
+      set_autostart_profile_name(profile.get_name());
+      start_notification();
+     gen_event(GCI_REQ_ESTABLISH, "CORE_THREAD_ACTIVE", null);
 
-        thread.connect(this);
-        this.mThread = thread;
-        this.thread_started = SystemClock.elapsedRealtime();
-        this.cpu_usage = new CPUUsage();
-        this.active = true;
-        return true;
-    }
+// ตัด WireGuard ก่อนเริ่ม OpenVPN
+   disconnectWireGuardIfNeeded();
+
+   thread.connect(this);
+   this.mThread = thread;
+   this.thread_started = SystemClock.elapsedRealtime();
+   this.cpu_usage = new CPUUsage();
+   this.active = true;
+   return true;
 
     private void start_notification() {
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
