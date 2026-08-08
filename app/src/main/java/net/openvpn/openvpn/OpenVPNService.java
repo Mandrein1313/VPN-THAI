@@ -1320,7 +1320,7 @@ public class OpenVPNService extends VpnService implements Handler.Callback, net.
    this.cpu_usage = new CPUUsage();
    this.active = true;
    return true;
-
+}
     private void start_notification() {
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
