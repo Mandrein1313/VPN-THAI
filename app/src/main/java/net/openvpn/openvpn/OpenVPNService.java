@@ -1354,27 +1354,130 @@ public class OpenVPNService extends VpnService implements Handler.Callback, net.
         }
     }
 
-    private void update_notification_event(EventMsg evm) {
-        if (this.mNotifyBuilder != null && evm.priority >= MSG_EVENT) {
-            int iconRes = evm.icon_res_id;
-            if (iconRes == R.drawable.connected || 
-                iconRes == R.drawable.connecting || 
-                iconRes == R.drawable.error) {
-                this.mNotifyBuilder.setSmallIcon(R.drawable.openvpn_notification);
-            } else {
-                this.mNotifyBuilder.setSmallIcon(R.drawable.icon);
-            }
-            this.mNotifyBuilder.setContentText(resString(evm.res_id));
-            startForeground(NOTIFICATION_ID, this.mNotifyBuilder.build());
+private void update_notification_event(EventMsg evm) {
+    createNotificationChannel();
+
+    if (mNotifyBuilder == null) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            mNotifyBuilder = new Notification.Builder(this, CHANNEL_ID);
+        } else {
+            mNotifyBuilder = new Notification.Builder(this);
         }
     }
 
-    private void stop_notification() {
-        if (this.mNotifyBuilder != null) {
-            this.mNotifyBuilder = null;
-            stopForeground(true);
+    String profileName = (current_profile != null) ? current_profile.get_name() : "OpenVPN";
+    String title;
+    String content;
+    int smallIcon = R.drawable.icon;
+
+    if (evm != null) {
+        if (evm.res_id == R.string.connected) {
+            title = "เชื่อมต่อแล้ว: " + profileName;
+            content = "แตะเพื่อเปิดแอป หรือกดตัดการเชื่อมต่อ";
+            smallIcon = R.drawable.connected;   // ถ้ามี drawable นี้
+        } else if (evm.res_id == R.string.connecting
+                || evm.res_id == R.string.core_thread_active
+                || evm.res_id == R.string.resolve
+                || evm.res_id == R.string.wait
+                || evm.res_id == R.string.get_config
+                || evm.res_id == R.string.assign_ip
+                || evm.res_id == R.string.add_routes) {
+            title = "กำลังเชื่อมต่อ: " + profileName;
+            content = "กรุณารอสักครู่...";
+            smallIcon = R.drawable.connecting; // ถ้ามี
+        } else if (evm.res_id == R.string.disconnected
+                || evm.res_id == R.string.core_thread_inactive) {
+            title = "ตัดการเชื่อมต่อแล้ว";
+            content = profileName;
+            smallIcon = R.drawable.disconnected; // ถ้ามี
+        } else {
+            title = profileName;
+            content = (evm.info != null && !evm.info.isEmpty()) ? evm.info : resString(evm.res_id);
+        }
+    } else {
+        title = "OpenVPN";
+        content = profileName;
+    }
+
+    // Intent เปิดแอป
+    Intent openIntent = new Intent(this, OpenVPNClient.class);
+    openIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+    int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        piFlags |= PendingIntent.FLAG_IMMUTABLE;
+    }
+    PendingIntent openPending = PendingIntent.getActivity(this, 0, openIntent, piFlags);
+
+    // Intent ตัดการเชื่อมต่อ
+    Intent disconnectIntent = new Intent(this, OpenVPNService.class);
+    disconnectIntent.setAction(ACTION_DISCONNECT);
+    PendingIntent disconnectPending = PendingIntent.getService(this, 1, disconnectIntent, piFlags);
+
+    // สร้าง Builder ใหม่ทุกครั้งเพื่อเคลียร์ Action เก่า
+    Notification.Builder builder;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        builder = new Notification.Builder(this, CHANNEL_ID);
+    } else {
+        builder = new Notification.Builder(this);
+    }
+
+    builder.setContentTitle(title)
+            .setContentText(content)
+            .setSmallIcon(smallIcon)
+            .setContentIntent(openPending)
+            .setOngoing(active)
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(!active);
+
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+        builder.setPriority(Notification.PRIORITY_DEFAULT);
+    }
+
+    // เพิ่มปุ่มตัดการเชื่อมต่อเมื่อกำลังเชื่อมอยู่
+    if (active) {
+        builder.addAction(0, "ตัดการเชื่อมต่อ", disconnectPending);
+    }
+
+    mNotifyBuilder = builder;
+
+    NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+    if (nm != null) {
+        try {
+            nm.notify(NOTIFICATION_ID, builder.build());
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to show notification", e);
         }
     }
+}
+private void createNotificationChannel() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm == null) return;
+
+        NotificationChannel existing = nm.getNotificationChannel(CHANNEL_ID);
+        if (existing != null) return; // มีแล้วไม่ต้องสร้างซ้ำ
+
+        NotificationChannel channel = new NotificationChannel(
+                CHANNEL_ID,
+                "สถานะ VPN",
+                NotificationManager.IMPORTANCE_DEFAULT
+        );
+        channel.setDescription("แสดงสถานะการเชื่อมต่อ OpenVPN");
+        channel.enableLights(false);
+        channel.enableVibration(false);
+        channel.setShowBadge(false);
+
+        nm.createNotificationChannel(channel);
+    }
+}
+
+private void stop_notification() {
+    NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+    if (nm != null) {
+        nm.cancel(NOTIFICATION_ID);
+    }
+    mNotifyBuilder = null;
+}
 
 
     @Override
@@ -1527,7 +1630,20 @@ public class OpenVPNService extends VpnService implements Handler.Callback, net.
         }
         return null;
     }
-
+/**
+ * ตัด WireGuard ก่อนเริ่ม OpenVPN (ป้องกันการชนกัน)
+ */
+private void disconnectWireGuardIfNeeded() {
+    try {
+        if (net.openvpn.openvpn.wg.WgController.get(this).isUp()) {
+            Log.i(TAG, "OpenVPN starting → disconnecting WireGuard first");
+            net.openvpn.openvpn.wg.WgController.get(this).disconnect();
+            log_message("WireGuard disconnected before starting OpenVPN");
+        }
+    } catch (Exception e) {
+        Log.w(TAG, "Failed to disconnect WireGuard before OpenVPN", e);
+    }
+}
     private void stop_thread() {
         if (this.active && this.mThread != null) {
             this.mThread.stop();
